@@ -1,0 +1,16 @@
+{
+  "name": "hutil",
+  "version": "0.0.1",
+  "description": "Hola Utilities",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hola/hutil.git"
+  },
+  "author": "Gilad Novik <gilad@hola.org> (https://luminati.io)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hola/hutil/issues"
+  },
+  "homepage": "https://github.com/hola/hutil#readme"
+}
