@@ -12,5 +12,8 @@
   "bugs": {
     "url": "https://github.com/hola/hutil/issues"
   },
-  "homepage": "https://github.com/hola/hutil#readme"
+  "homepage": "https://github.com/hola/hutil#readme",
+  "dependencies": {
+    "underscore": "^1.8.3"
+  }
 }
