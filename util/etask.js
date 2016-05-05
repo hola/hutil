@@ -1373,6 +1373,21 @@ E.fn = function(opt, states){
         return etask(opt, _states);
     };
 };
+E._fn = function(opt, states){
+    if (Array.isArray(opt) || typeof opt=='function')
+    {
+        states = opt;
+        opt = undefined;
+    }
+    if (typeof states=='function')
+        states = [states];
+    return function(){
+        var _states = array.copy(states);
+        var arg = [this].concat(array.slice(arguments));
+        _states[0] = function(){ return states[0].apply(this, arg); };
+        return etask(opt, _states);
+    };
+};
 E._generator = function(gen, ctor, opt){
     opt = opt||{};
     opt.name = opt.name||(ctor && ctor.name)||'generator';
@@ -1397,7 +1412,9 @@ E._generator = function(gen, ctor, opt){
         return this.egoto('loop', this.error ?
             {ret: undefined, err: this.error} : {ret: ret, err: undefined});
     }, function ensure$(){
-        if (!done && gen.return) // generator .return() not yet supported by v8
+        // https://kangax.github.io/compat-table/es6/#test-generators_%GeneratorPrototype%.return
+        // .return() supported only in node>=6.x.x
+        if (!done && gen.return)
             try { gen.return(); } catch(e){}
     }]);
 };
