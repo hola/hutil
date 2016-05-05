@@ -1,6 +1,6 @@
 {
   "name": "hutil",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Hola Utilities",
   "main": "index.js",
   "repository": {
