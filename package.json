@@ -1,6 +1,6 @@
 {
   "name": "hutil",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Hola Utilities",
   "main": "index.js",
   "repository": {
@@ -14,6 +14,7 @@
   },
   "homepage": "https://github.com/hola/hutil#readme",
   "dependencies": {
+    "rimraf": "^2.5.2",
     "underscore": "^1.8.3"
   }
 }
