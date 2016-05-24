@@ -2,10 +2,22 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define, process;
-var is_node = typeof module=='object' && module.exports;
-if (!is_node)
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_node_ff = typeof module=='object' && module.exports;
+var is_ff_addon = typeof module=='object' && module.uri
+    && !module.uri.indexOf('resource://');
+if (!is_node_ff)
 {
     define = self.define;
+    process = {env: {}};
+}
+else if (is_ff_addon)
+{
+    // XXX romank: tmp hack, find a better way to remove jquery
+    define = function(deps, fn){
+        deps.pop();
+        return require('./require_node.js').define(module, '../')(deps, fn);
+    };
     process = {env: {}};
 }
 else
@@ -73,7 +85,7 @@ E.log_tail = function(size){ return E.log.join('\n').substr(-(size||4096)); };
 E.perr = function(id, info, opt){
     E.zerr('perr '+id+' '+JSON.stringify(info));
     if (perr_pending && perr_pending.length<100)
-	perr_pending.push(array.args(arguments));
+	perr_pending.push(Array.from(arguments));
 };
 var perr_orig = E.perr;
 E.perr_install = function(install_fn){
@@ -111,7 +123,7 @@ E.on_unhandled_exception = undefined;
 E.catch_unhandled_exception = function(func, obj){
     return function(){
         var args = arguments;
-        try { return func.apply(obj, array.slice(args)); }
+        try { return func.apply(obj, Array.from(args)); }
         catch(e){ E.on_unhandled_exception(e); }
     };
 };

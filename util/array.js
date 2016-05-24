@@ -2,8 +2,8 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define;
-var is_node = typeof module=='object' && module.exports;
-if (!is_node)
+var is_node_ff = typeof module=='object' && module.exports;
+if (!is_node_ff)
     define = self.define;
 else
     define = require('./require_node.js').define(module, '../');
@@ -33,42 +33,10 @@ E.unshift = function(a){
     return a.length;
 };
 
-/* converting arguments to array using slice is slow.
- * http://jsperf.com/arguments-to-array/7 */
-function array_copy(args, from, to){
-    var ret = new Array(Math.max(0, to-from));
-    for (var i = from; i<to; i++)
-	ret[i-from] = args[i];
-    return ret;
-}
+E.slice = function(args, from, to){
+    return Array.prototype.slice.call(args, from, to); };
 
-/* a can also be arguments. avoid doing slow manipulations on arguments.
- * faster than Array.prototype.slice.call(a, from, to) */
-E.slice = function(a, from, to){
-    if (from===undefined && to===undefined)
-	return E.copy(a);
-    to = to!==undefined ? to : a.length;
-    from = from!==undefined ? from : 0;
-    to = to>=0 ? to : a.length+to;
-    return array_copy(a, from, to);
-};
-
-// can use new Array() constructor for coping only with 2 args or more
-// http://jsperf.com/arguments-to-array/12
-E.copy = function(a){
-    return !a.length ? [] : a.length==1 ? [a[0]] : array_copy(a, 0, a.length);
-};
-E.args = E.copy;
-// faster: dup only if needed
-E._args = function(a){
-    return a instanceof Array ? a :
-	!a.length ? [] : a.length==1 ? [a[0]] : array_copy(a, 0, a.length);
-};
-
-// a.slice() is slow for arguments, but fast for arrays
-// http://jsperf.com/array-clone-slice-vs-for-loop/5
-E.compact = function(a){
-    return E.compact_self(a.slice()); };
+E.compact = function(a){ return E.compact_self(a.slice()); };
 E.compact_self = function(a){
     var i, j, n = a.length;
     for (i=0; i<n && a[i]; i++);
@@ -85,8 +53,7 @@ E.compact_self = function(a){
 };
 
 // same as _.flatten(a, true)
-E.flatten_shallow = function(a){
-    return Array.prototype.concat.apply([], a); };
+E.flatten_shallow = function(a){ return Array.prototype.concat.apply([], a); };
 E.flatten = function(a){
     var _a = [], i;
     for (i=0; i<a.length; i++)
@@ -199,9 +166,9 @@ proto.grep = function(regex, replace){
     return E.grep(this, regex, replace); };
 proto.to_nl = function(sep){ return E.to_nl(this, sep); };
 proto.push_a = function(){
-    return E.push.apply(null, [this].concat(E.copy(arguments))); };
+    return E.push.apply(null, [this].concat(Array.from(arguments))); };
 proto.unshift_a = function(){
-    return E.unshift.apply(null, [this].concat(E.copy(arguments))); };
+    return E.unshift.apply(null, [this].concat(Array.from(arguments))); };
 var installed;
 E.prototype_install = function(){
     if (installed)

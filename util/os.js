@@ -302,6 +302,7 @@ E.TCP = { // net/tcp_states.h
     11: 'CLOSING',
 };
 E.sockets_count = function(proto){
+    // XXX: read_lines_e will fail on high socket count
     var conns = file.read_lines_e('/proc/net/'+proto);
     var i, v = {total: 0, lo: 0, ext: 0, err: 0};
     for (i in E.TCP)

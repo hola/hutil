@@ -2,19 +2,13 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define;
-var is_node = typeof module=='object' && module.exports;
-var is_ff_addon = typeof module=='object' && module.uri &&
-    !module.uri.indexOf('resource://');
-if (is_ff_addon)
-{
-    // in firefox require() argument cannot be a variable
-    define = function(req, setup){
-	module.exports = setup.call(this); };
-}
-else if (!is_node)
-    define = self.define;
-else
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_ff_addon = typeof module=='object' && module.uri
+    && !module.uri.indexOf('resource://');
+if (is_node||is_ff_addon)
     define = require('./require_node.js').define(module, '../');
+else
+    define = self.define;
 define([], function(){
 var E = {};
 // based on:

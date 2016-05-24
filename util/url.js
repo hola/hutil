@@ -2,10 +2,10 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define, node_url;
-var is_node = typeof module=='object' && module.exports;
-var is_ff_addon = typeof module=='object' && module.uri &&
-    !module.uri.indexOf('resource://');
-if (!is_node)
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_ff_addon = typeof module=='object' && module.uri
+    && !module.uri.indexOf('resource://');
+if (!is_node && !is_ff_addon)
     define = self.define;
 else
 {

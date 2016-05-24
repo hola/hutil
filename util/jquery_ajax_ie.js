@@ -2,8 +2,8 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define;
-var is_node = typeof module=='object' && module.exports;
-if (!is_node)
+var is_node_ff = typeof module=='object' && module.exports;
+if (!is_node_ff)
     define = self.define;
 define(['jquery'], function($){
 var E = {};
@@ -65,7 +65,8 @@ if (!$.support.cors&&window.XDomainRequest)
                             status.message = 'parseerror';
                             // throw 'Invalid JSON: ' + xdr.responseText;
                          }
-                    } else if (userType=='xml'||(userType!='text'&&
+                    }
+                    else if (userType=='xml'||(userType!='text'&&
                         xmlRegEx.test(xdr.contentType)))
                     {
                         var doc = new window.ActiveXObject(

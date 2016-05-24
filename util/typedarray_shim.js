@@ -38,14 +38,14 @@
 //  * Gradually migrating structure from Khronos spec to ES6 spec
 (function(global) {
   var define;
-  var is_node = typeof module=='object' && module.exports;
-  if (!is_node)
+  var is_node_ff = typeof module=='object' && module.exports;
+  if (!is_node_ff)
     define = self.define;
   else
     define = function(name, setup){ module.exports = setup(); };
   define('/util/typedarray_shim.js', function(){
   var E = {};
-  if (is_node || window.ArrayBuffer)
+  if (is_node_ff || window.ArrayBuffer)
       return E;
 
   // Beyond this value, index getters/setters (i.e. array[0], array[1]) are so slow to

@@ -2,7 +2,7 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define, node_url;
-var is_node = typeof module=='object' && module.exports;
+var is_node = typeof module=='object' && module.exports && module.children;
 if (!is_node)
     define = self.define;
 else

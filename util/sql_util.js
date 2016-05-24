@@ -2,11 +2,7 @@
 'use strict'; /*jslint node:true*/
 require('./config.js');
 const mysql = require('mysql');
-const rand = require('./rand.js');
 const cookie = require('cookie');
-const _ = require('underscore');
-const sprintf = require('./sprintf.js');
-const zutil = require('./util.js');
 const match = require('./match.js');
 const E = exports;
 
@@ -59,7 +55,7 @@ E.build_select_query = function(query){
 E.escape = function(val){ return mysql.escape(val); };
 
 E.get_mysql_conn_opt = function(conn_str, defaults){
-    var conn = zutil.extend({host: 'localhost', user: 'root', pass: '',
+    var conn = Object.assign({host: 'localhost', user: 'root', pass: '',
 	db: 'zserver', multipleStatements: false, timezone: '+00:00'},
 	defaults||{}, cookie.parse(conn_str||''));
     return {host: conn.host, user: conn.user, password: conn.pass,

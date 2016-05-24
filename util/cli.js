@@ -5,7 +5,7 @@ const getopt = require('node-getopt');
 const file = require('./file.js');
 const exec = require('./exec.js');
 const zerr = require('./zerr.js');
-const util = require('./util.js');
+const zutil = require('./util.js');
 const array = require('./array.js');
 const string = require('./string.js');
 const sprintf = require('./sprintf.js');
@@ -60,7 +60,6 @@ function guess_dryrun(args){
 }
 
 E.getopt = function(args, usage, commands){
-    var cmd_desc = 'Commands:\n';
     if (find_opt('h', args)<0)
         args.push(['h', 'help', 'show usage']);
     if (find_opt('v', args)<0)
@@ -103,7 +102,7 @@ E.exec = function(cmd, opt){
     if (E.dry_run)
         return;
     var base_opt = Array.isArray(cmd) ? {} : {shell: true, stdio: 'inherit'};
-    opt = util.extend(base_opt, opt||{});
+    opt = Object.assign(base_opt, opt||{});
     return exec.sys_sync(cmd, opt);
 };
 E.exec_e = function(cmd, opt){
@@ -205,7 +204,7 @@ E.process_args = function(commands){
     }
     if (E.dry_run)
     {
-        if (!util.xor(opt.dry_run, opt.real_run))
+        if (!zutil.xor(opt.dry_run, opt.real_run))
             E.usage('choose either --dry-run or --real-run');
         E.dry_run = !opt.real_run;
     }

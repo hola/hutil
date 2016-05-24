@@ -2,20 +2,15 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define, process, zerr, assert;
-var is_node = typeof module=='object' && module.exports;
-var is_ff_addon = typeof module=='object' && module.uri &&
-    !module.uri.indexOf('resource://');
-if (is_ff_addon)
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_ff_addon = typeof module=='object' && module.uri
+    && !module.uri.indexOf('resource://');
+if (!is_node)
 {
-    // in firefox require() argument cannot be a variable
-    var array = require('./array');
-    var zutil = require('./util');
-    define = function(req, setup){
-	module.exports = setup.call(this, array, zutil); };
-}
-else if (!is_node)
-{
-    define = self.define;
+    if (is_ff_addon)
+        define = require('./require_node.js').define(module, '../');
+    else
+        define = self.define;
     process = {
         nextTick: function(fn){ setTimeout(fn, 0); },
         env: {},
@@ -23,7 +18,7 @@ else if (!is_node)
     assert = function(){}; // XXX romank: add proper assert
     // XXX romank: use zerr.js
     // XXX bahaa: require bext/pub/zerr.js for extensions
-    if (self.hola && self.hola.zerr)
+    if (!is_ff_addon && self.hola && self.hola.zerr)
         zerr = self.hola.zerr;
     else
     {
@@ -48,7 +43,7 @@ define(['events', '/util/array.js', '/util/util.js'],
     function(events, array, zutil){
 var E = Etask;
 var etask = Etask;
-var env = process.env;
+var env = process.env, assign = Object.assign;
 E.longcb = +env.LONGCB;
 E.use_bt = +env.ETASK_BT;
 E.root = [];
@@ -133,6 +128,11 @@ function Etask(opt, states){
         }
         else
             assert(0, 'invalid state type');
+        if (i==0 && opt.state0_args)
+        {
+            state.f = state.f.bind.apply(state.f,
+                [this].concat(opt.state0_args));
+        }
         if (state.label)
             idx[state.label] = i;
         assert((state.catch||state.try_catch?1:0)
@@ -544,7 +544,6 @@ E.prototype._set_wait_timer = function(timeout){
     }, timeout);
 };
 E.prototype._del_wait_timer = function(){
-    var i;
     if (this.wait_timer)
         this.wait_timer = clearTimeout(this.wait_timer);
     this.wait_retval = undefined;
@@ -651,7 +650,7 @@ E.prototype._ecancel_child = function(){
     if (!this.child.length)
         return;
     // copy array, since ecancel has side affects and can modify array
-    var child = array.copy(this.child);
+    var child = Array.from(this.child);
     for (var i=0; i<child.length; i++)
         child[i]._ecancel();
 };
@@ -897,7 +896,7 @@ E.prototype.longname = function(flags){
 };
 E.prototype.stack = function(flags){
     var et = this, s = '';
-    flags = zutil.extend({STACK: 1, RECURSIVE: 1, GUESS: 1}, flags);
+    flags = assign({STACK: 1, RECURSIVE: 1, GUESS: 1}, flags);
     while (et)
     {
         var _s = et.longname(flags)+'\n';
@@ -939,7 +938,7 @@ E.prototype._ps = function(pre_first, pre_next, flags){
         if (flags.RECURSIVE)
         {
             var stack_trail = et.down ? '.' : ' ';
-            var child = et.child, child_length = child.length;
+            var child = et.child;
             if (flags.GUESS)
                 child = child.concat(et.child_guess);
             for (i = 0; i<child.length; i++)
@@ -975,7 +974,7 @@ function ps_flags(flags){
     }
 }
 E.prototype.ps = function(flags){
-    flags = zutil.extend({STACK: 1, RECURSIVE: 1, LIMIT: 10000000, TIME: 1,
+    flags = assign({STACK: 1, RECURSIVE: 1, LIMIT: 10000000, TIME: 1,
         GUESS: 1}, flags, {limit_n: 0});
     ps_flags(flags);
     return this._ps('', '', flags);
@@ -984,7 +983,7 @@ E._longname_root = function(){
     return (zerr.prefix ? zerr.prefix+'pid '+process.pid+' ' : '')+'root'; };
 E.ps = function(flags){
     var i, s = '', task_trail;
-    flags = zutil.extend({STACK: 1, RECURSIVE: 1, LIMIT: 10000000, TIME: 1,
+    flags = assign({STACK: 1, RECURSIVE: 1, LIMIT: 10000000, TIME: 1,
         GUESS: 1}, flags, {limit_n: 0});
     ps_flags(flags);
     s += E._longname_root()+'\n';
@@ -1075,7 +1074,7 @@ E.prototype._assert_parent = function(){
 
 E.prototype.ereturn_child = function(){
     // copy array, since ereturn has side affects and can modify array
-    var child = array.copy(this.child);
+    var child = Array.from(this.child);
     for (var i=0; i<child.length; i++)
         child[i].ereturn();
 };
@@ -1151,7 +1150,7 @@ E.all = function(a_or_o, ao2){
     }
     if (Array.isArray(a_or_o))
     {
-        var a = array.copy(a_or_o);
+        var a = Array.from(a_or_o);
         i = 0;
         return etask({name: 'all_a', cancel: true}, [function(){
             for (j=0; j<a.length; j++)
@@ -1207,16 +1206,20 @@ E.all = function(a_or_o, ao2){
         assert(0, 'invalid type');
 };
 
-E.all_limit = function(limit, iter){
-    var next;
-    return etask({name: 'all_limit', cancel: true}, [function loop(){
+E.all_limit = function(limit, arr_iter, cb){
+    var at = 0;
+    var iter = !Array.isArray(arr_iter) ? arr_iter : function(){
+        if (at<arr_iter.length)
+            return cb.call(this, arr_iter[at++]);
+    };
+    return etask({name: 'all_limit', cancel: true}, [function(){
+        var next;
         if (!(next = iter.call(this)))
             return this.egoto('done');
         this.spawn(next);
+        this.eloop();
         if (this.child.length>=limit)
             return this.wait_child('any');
-    }, function(){
-        return this.egoto('loop');
     }, function done(){
         return this.wait_child('all');
     }]);
@@ -1243,7 +1246,7 @@ E._apply = function(opt, func, _this, args){
     opt.name = opt.name||func_name||func.name;
     return etask(opt, [function(){
         var et = this, ret_sync, returned = 0;
-        args = array.args(args);
+        args = Array.from(args);
         args.push(function cb(err, res){
             if (typeof opt.ret_sync=='string' && !returned)
             {
@@ -1295,7 +1298,7 @@ E.nfn_apply = function(opt, func, _this, args){
         opt = _opt;
     }
     else
-        opt = zutil.extend(_opt, opt);
+        opt = assign(_opt, opt);
     return E._apply(opt, func, _this, args);
 };
 // cb_apply([opt, ]object, method, args)
@@ -1310,7 +1313,7 @@ E.cb_apply = function(opt, func, _this, args){
         opt = _opt;
     }
     else
-        opt = zutil.extend(_opt, opt);
+        opt = assign(_opt, opt);
     return E._apply(opt, func, _this, args);
 };
 
@@ -1323,7 +1326,7 @@ E.augment = function(_prototype, method, e_method){
     var i, opt = {};
     if (method instanceof Object && !Array.isArray(method))
     {
-        zutil.extend(opt, method);
+        assign(opt, method);
         method = arguments[2];
         e_method = arguments[3];
     }
@@ -1359,35 +1362,22 @@ E.to_nfn = function(promise, cb, opt){
         cb.apply(null, ret);
     }]);
 };
-E.fn = function(opt, states){
+function etask_fn(opt, states, push_this){
     if (Array.isArray(opt) || typeof opt=='function')
     {
         states = opt;
         opt = undefined;
     }
-    if (typeof states=='function')
-        states = [states];
     return function(){
-        var _states = array.copy(states), arg = arguments;
-        _states[0] = function(){ return states[0].apply(this, arg); };
-        return etask(opt, _states);
+        var _opt = assign({}, opt);
+        _opt.state0_args = Array.from(arguments);
+        if (push_this)
+            _opt.state0_args.unshift(this);
+        return etask(_opt, states);
     };
-};
-E._fn = function(opt, states){
-    if (Array.isArray(opt) || typeof opt=='function')
-    {
-        states = opt;
-        opt = undefined;
-    }
-    if (typeof states=='function')
-        states = [states];
-    return function(){
-        var _states = array.copy(states);
-        var arg = [this].concat(array.slice(arguments));
-        _states[0] = function(){ return states[0].apply(this, arg); };
-        return etask(opt, _states);
-    };
-};
+}
+E.fn = function(opt, states){ return etask_fn(opt, states, false); };
+E._fn = function(opt, states){ return etask_fn(opt, states, true); };
 E._generator = function(gen, ctor, opt){
     opt = opt||{};
     opt.name = opt.name||(ctor && ctor.name)||'generator';
@@ -1395,7 +1385,7 @@ E._generator = function(gen, ctor, opt){
         opt.cancel = true;
     var done;
     return etask(opt, [function(){
-        this.generator = gen = gen||ctor.call(this);
+        this.generator = gen = gen||ctor.apply(this, opt.state0_args||[]);
         this.generator_ctor = ctor;
         return {ret: undefined, err: undefined};
     }, function try_catch$loop(rv){

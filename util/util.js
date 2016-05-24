@@ -1,19 +1,12 @@
 // LICENSE_CODE ZON ISC
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
-// XXX amir: when http_proxy.js:EventEmitter3 moves to pkg/util/eventemitter.js
-// then we can add events support also in browser
 var define, node_util;
-var is_node = typeof module=='object' && module.exports;
-var is_ff_addon = typeof module=='object' && module.uri &&
-    !module.uri.indexOf('resource://');
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_ff_addon = typeof module=='object' && module.uri
+    && !module.uri.indexOf('resource://');
 if (is_ff_addon)
-{
-    // in firefox require() argument cannot be a variable
-    var array = require('./array');
-    define = function(req, setup){
-	module.exports = setup.call(this, array); };
-}
+    define = require('./require_node.js').define(module, '../');
 else if (!is_node)
     define = self.define;
 else
@@ -65,7 +58,7 @@ E.clamp = function(lower_bound, value, upper_bound){
 /* Union given objects, using fn to resolve conflicting keys */
 E.union_with = function(fn /*[o1, [o2, [...]]]*/){
     var res = {}, args;
-    if (arguments.length===2 && typeof arguments[1]==='object')
+    if (arguments.length==2 && typeof arguments[1]=='object')
         args = arguments[1];
     else
         args = array.slice(arguments, 1);
@@ -110,8 +103,7 @@ E.clone_deep = function(obj){
     return _clone_deep(obj);
 };
 
-/* _.extend is slow due to arguments parsing */
-E.extend = function(obj){
+E.extend = function(obj){ // like _.extend
     for (var i=1; i<arguments.length; i++)
     {
 	var source = arguments[i];
@@ -165,8 +157,7 @@ E.extend_deep_del_null = function(obj){
     return obj;
 };
 
-/* _.clone is slow since it uses _.extend */
-E.clone = function(obj){
+E.clone = function(obj){ // like _.clone
     if (!(obj instanceof Object))
 	return obj;
     if (obj instanceof Array)
@@ -182,9 +173,8 @@ E.clone = function(obj){
 // like _.map() except returns object, not array
 E.map_obj = function(obj, fn){
     var ret = {};
-    var keys = Object.keys(obj);
-    for (var i=0; i<keys.length; ++i)
-        ret[keys[i]] = fn(obj[keys[i]], keys[i], obj);
+    for (var i in obj)
+        ret[i] = fn(obj[i], i, obj);
     return ret;
 };
 
@@ -192,17 +182,29 @@ E.map_obj = function(obj, fn){
 E.sort_obj = function(obj){
     if (obj instanceof Array || !(obj instanceof Object))
 	return obj;
-    var ret = {};
-    var keys = Object.keys(obj).sort();
+    var ret = {}, keys = Object.keys(obj).sort();
     for (var i=0; i<keys.length; i++)
 	ret[keys[i]] = E.sort_obj(obj[keys[i]]);
     return ret;
 };
 
-E.isdigit = function(c){
-    return c>='0' && c<='9'; };
-E.isalpha = function(c){
-    return (c>='a' && c<='z') || (c>='A' && c<='Z'); };
+// an Object equivalent of Array.prototype.forEach
+E.forEach = function(obj, fn, _this){
+    for (var i in obj)
+        fn.call(_this, obj[i], i, obj);
+};
+// an Object equivalent of Array.prototype.find
+E.find = function(obj, fn, _this){
+    for (var i in obj)
+    {
+        if (fn.call(_this, obj[i], i, obj))
+            return obj[i];
+    }
+};
+E.find_prop = function(obj, prop, val){
+    return E.find(obj, function(o){ return o[prop]===val; }); };
+E.isdigit = function(c){ return c>='0' && c<='9'; };
+E.isalpha = function(c){ return (c>='a' && c<='z') || (c>='A' && c<='Z'); };
 E.isalnum = function(c){ return E.isdigit(c)||E.isalpha(c); };
 
 E.obj_pluck = function(obj, prop){
@@ -258,7 +260,7 @@ E.has = function(o, path){ return E.get(o, path, has_unique)!==has_unique; };
 
 E.bool_lookup = function(a, split){
     var ret = {}, i;
-    if (typeof a==='string')
+    if (typeof a=='string')
 	a = a.split(split||/\s/);
     for (i=0; i<a.length; i++)
 	ret[a[i]] = true;

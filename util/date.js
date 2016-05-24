@@ -2,8 +2,9 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define;
-var is_node = typeof module=='object' && module.exports;
-if (!is_node)
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_node_ff = typeof module=='object' && module.exports;
+if (!is_node_ff)
     define = self.define;
 else
     define = require('./require_node.js').define(module, '../');
@@ -71,7 +72,7 @@ E.init = function(){
         E.monotonic = function(){
             var now = Date.now()+monotonic_adjust;
             if (now>=monotonic_last)
-                return E.monotonic_last = now;
+                return monotonic_last = now;
             monotonic_adjust += monotonic_last-now;
             return monotonic_last;
         };

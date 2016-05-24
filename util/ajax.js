@@ -2,22 +2,19 @@
 'use strict'; /*jslint browser:true, node:true*/
 (function(){
 var define;
-var is_node = typeof module=='object' && module.exports;
-if (!is_node)
+var is_node_ff = typeof module=='object' && module.exports;
+if (!is_node_ff)
     define = self.define;
 else
     define = require('./require_node.js').define(module, '../');
-define(['jquery', '/util/etask.js', '/util/date.js',
-    '/util/escape.js', '/util/zerr.js', '/util/util.js',
-    'events'],
-    function($, etask, date, zescape, zerr, util, EventEmitter){
+define(['jquery', '/util/etask.js', '/util/date.js', '/util/escape.js',
+    '/util/zerr.js', 'events'],
+    function($, etask, date, zescape, zerr, events){
 var E = ajax;
-if (util.is_mocha()) $.support.cors = true; // avoid of $ 'No transport' error
-E.events = new EventEmitter();
-E.json = function(opt){ return ajax(util.extend({}, opt, {json: 1})); };
-E.abort = function(ajax){
-    ajax.egoto('abort');
-};
+var assign = Object.assign;
+E.events = new events.EventEmitter();
+E.json = function(opt){ return ajax(assign({}, opt, {json: 1})); };
+E.abort = function(ajax){ ajax.egoto('abort'); };
 // XXX arik: need test
 // XXX mikhail: should GET be the default method?
 function ajax(opt){
@@ -27,7 +24,7 @@ function ajax(opt){
     // opt.type is deprecated
     var method = opt.method||opt.type||'POST';
     var data_type = opt.json ? 'json' : 'text';
-    var t0 = date();
+    var t0 = Date.now();
     var xhr;
     zerr.debug('ajax('+data_type+') url '+url+' retry '+retry);
     return etask([function(){
@@ -44,14 +41,14 @@ function ajax(opt){
             xhr.statusText+'\nresponseText: '+
             (xhr.responseText||'').substr(0, 200));
         if (retry)
-            return this.ereturn(ajax(util.extend({}, opt, {retry: retry-1})));
+            return this.ereturn(ajax(assign({}, opt, {retry: retry-1})));
         if (xhr.statusText=='timeout')
             E.events.emit('timeout', this);
         if (opt.no_throw)
             return {error: xhr.statusText||'no_status'};
         throw new Error(xhr.statusText);
     }, function(data){
-        var t = date()-t0;
+        var t = Date.now()-t0;
         zerr[t>slow ? 'err' : 'debug'](
             'ajax('+data_type+') '+(t>slow ? 'SLOW ' : 'ok ')+t+'ms url '+url);
         if (t>slow && perr)

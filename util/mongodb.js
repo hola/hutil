@@ -4,7 +4,6 @@ require('./config.js');
 const _mongodb = require('mongodb');
 const _ = require('underscore');
 const cookie = require('cookie');
-const zutil = require('./util.js');
 const zcounter = require('./zcounter.js');
 const etask = require('./etask.js');
 const sprintf = require('./sprintf.js');
@@ -16,10 +15,10 @@ const mutex = require('./mutex.js');
 const date = require('./date.js');
 const zescape = require('./escape.js');
 const E = exports;
+const assign = Object.assign, SEC = date.ms.SEC;
 let mongo_mutex = {};
 let open_conns = {};
 let env = process.env;
-const SEC = date.ms.SEC;
 
 let slow_opt = {};
 let monitored_colls = {};
@@ -335,6 +334,17 @@ E.aggregate = (zmongo, pipeline, opt)=>etask(function*mongo_aggregate(){
     return agg;
 });
 
+E.distinct = (zmongo, key, selector, opt)=>etask(function*mongo_distinct(){
+    if (check_stub(zmongo))
+        return null;
+    selector = selector||{};
+    let args = [key, selector];
+    if (opt)
+        args.push(opt);
+    zerr.debug('mongodb distinct. key %O selector %O', key, selector);
+    return yield zmongo.collection.distinct.apply(zmongo.collection, args);
+});
+
 E.initialize_ordered_bulk_op = (zmongo, opt)=>
     zmongo.collection.initializeOrderedBulkOp(opt);
 
@@ -374,13 +384,13 @@ E.close = zmongo=>etask(function*mongo_close(){
 });
 
 E.connect = (conn, db, collection)=>etask(function*mongo_connect(){
-    let opt = zutil.extend({host: 'localhost', port: 27017},
+    let opt = assign({host: 'localhost', port: 27017},
 	conn instanceof Object ? conn : cookie.parse(conn||''));
     let can_reuse = +env.MONGO_REUSE_CONNS;
     let url, ret = {opt: opt}, _db, _collection;
     // XXX vladimir: deprecate and remove db param, it is overridden by opt
     db = opt.db||db;
-    let hosts = opt.host+':'+opt.port, host, port;
+    let hosts = opt.host+':'+opt.port, host;
     for (let i=1; host = opt['host'+i]; i++)
         hosts += ','+host+':'+(opt['port'+i]||'27017');
     let url_opts = {};
@@ -484,7 +494,7 @@ E.serverStatus = (zmongo, _opt)=>{
     if (_opt&&_opt.read_preference)
         opt.readPreference = _opt.read_preference;
     return E.command(zmongo, {serverStatus: 1},
-        zutil.extend({ignoreCommandFilter: true}, opt));
+        assign({ignoreCommandFilter: true}, opt));
 };
 
 E.command = (zmongo, command, opt)=>etask(function*mongo_command(){
@@ -505,11 +515,11 @@ function*(){
 });
 
 E.current_op = (zmongo, query)=>zmongo.db.admin().command(
-    zutil.extend({currentOp: 1}, query));
+    assign({currentOp: 1}, query));
 
 E.Iterator = Iterator;
 function Iterator(name, cursor, opt){
-    zutil.extend(this, {done: false, limit: 0, progress: 0}, opt);
+    assign(this, {done: false, limit: 0, progress: 0}, opt);
     this.curr = null;
     this.cursor = cursor;
     this.name = name;

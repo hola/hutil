@@ -2,21 +2,18 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define, crypto, assert, zerr, vm;
-var is_node = typeof module=='object' && module.exports;
-var is_ff_addon = typeof module=='object' && module.uri &&
-    !module.uri.indexOf('resource://');
-if (is_ff_addon)
+var is_node = typeof module=='object' && module.exports && module.children;
+var is_ff_addon = typeof module=='object' && module.uri
+    && !module.uri.indexOf('resource://');
+if (!is_node)
 {
-    var util = require('./util');
-    define = function(req, setup){
-	module.exports = setup.call(this, util); };
-}
-else if (!is_node)
-{
-    define = self.define;
+    if (is_ff_addon)
+        define = require('./require_node.js').define(module, '../');
+    else
+        define = self.define;
     assert = function(){}; // XXX romank: add proper assert
     // XXX romank: use zerr.js
-    if (self.hola && self.hola.zerr)
+    if (!is_ff_addon && self.hola && self.hola.zerr)
         zerr = self.hola.zerr;
     else
     {

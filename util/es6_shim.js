@@ -2,8 +2,8 @@
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
 var define;
-var is_node = typeof module=='object' && module.exports;
-if (!is_node)
+var is_node_ff = typeof module=='object' && module.exports;
+if (!is_node_ff)
     define = self.define;
 else
     define = function(setup){ module.exports = setup(); };
@@ -83,6 +83,13 @@ E.t.array_findIndex = function(fn, this_arg){
     return -1;
 };
 add_prop(Array.prototype, 'findIndex', E.t.array_findIndex);
+E.t.array_of = function(){ return Array.prototype.slice.call(arguments); };
+add_prop(Array, 'of', E.t.array_of);
+E.t.array_from = function(a, fn, _this){
+    a = Array.prototype.slice.call(a);
+    return !fn ? a : a.map(fn, _this);
+};
+add_prop(Array, 'from', E.t.array_from);
 
 E.t.arraybuffer_slice = function(begin, end){
     begin = begin|0;
