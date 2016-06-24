@@ -12,6 +12,7 @@ const sprintf = require('./sprintf.js');
 const zescape = require('./escape.js');
 const jtools = require('./jtools.js');
 const etask = require('./etask.js');
+const assign = Object.assign, ef = etask.ef;
 var readline;
 try { readline = require('readline-sync'); } catch(e){}
 const E = exports;
@@ -97,23 +98,15 @@ E.verbose = function(msg){
     if (E.opt.verbose)
         console.log(msg);
 };
-E.exec = function(cmd, opt){
-    E.verbose(Array.isArray(cmd) ? cmd.join(' ') : cmd);
-    if (E.dry_run)
-        return;
-    var base_opt = Array.isArray(cmd) ? {} : {shell: true, stdio: 'inherit'};
-    opt = Object.assign(base_opt, opt||{});
-    return exec.sys_sync(cmd, opt);
-};
+let get_exec_opt = opt=>assign({log: E.opt.verbose, dry_run: E.dry_run}, opt);
+E.exec = (cmd, opt)=>exec.get(cmd, get_exec_opt(opt));
+E.exec_get_lines = cmd=>exec.get_lines(cmd, get_exec_opt());
+E.exec_get_line = cmd=>exec.get_line(cmd, get_exec_opt());
 E.exec_e = function(cmd, opt){
     var ret;
     if (ret = E.exec(cmd, opt))
         throw new Error("exec_e('"+cmd+"') exits with code "+ret);
 };
-E.exec_get_lines = function(cmd){
-    return string.split_crlf(E.exec(cmd, {out: 'stdout', stdio: 'pipe'}));
-};
-E.exec_get_line = function(cmd){ return E.exec_get_lines(cmd)[0]; };
 E.geteuid = function(){
     if (process.geteuid)
         return process.geteuid();
@@ -213,11 +206,11 @@ E.process_args = function(commands){
 E.script_error = function(name){
     function err(msg, opt){
         msg = msg||'';
-        opt = opt||{};
+        this.opt = opt||{};
         this.name = name;
         this.message = msg.message||msg;
         this.stack = msg.stack||(new Error(this)).stack;
-        this.output = opt.output||'';
+        this.output = this.opt.output||'';
     }
     err.prototype = Object.create(Error.prototype);
     err.prototype.constructor = err;
@@ -236,7 +229,7 @@ E.process_exit = (promise, opt)=>etask(function*process_main(){
     opt = opt||{};
     try {
         yield promise;
-    } catch(e){
+    } catch(e){ ef(e);
         console.error(opt.skip_stack ? ''+e : (e.stack||e));
         exit_with_code(opt, 1);
     }

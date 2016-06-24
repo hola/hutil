@@ -126,7 +126,7 @@ E.Xhr_stream = function(params){
     if (!this.dataType)
         this.dataType = 'text';
     var handle_resp = function(){
-	if (xhr.readyState != 3 || xhr.status != 200)
+	if (xhr.readyState!=3 || xhr.status!=200)
 	    return;
 	// in konqueror xhr.responseText is sometimes null here
 	if (xhr.responseText===null)
@@ -183,7 +183,7 @@ E.Xhr_stream_progress = function(method, url){
 	/* In konqueror xhr.responseText is sometimes null here */
 	if (xhr.responseText===null)
 	    return;
-	if (prev_data_len != xhr.responseText.length)
+	if (prev_data_len!=xhr.responseText.length)
 	{
 	    instance.ready(xhr.responseText);
 	    prev_data_len = xhr.responseText.length;

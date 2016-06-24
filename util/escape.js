@@ -149,7 +149,8 @@ E.qs = function(param, opt){
     var sep = qs || opt.amp ? '&' : '';
     if (!param)
         return qs;
-    var uri_comp = opt.space_plus ? E.uri_comp : encodeURIComponent;
+    var uri_comp = opt.space_plus===undefined || opt.space_plus ? E.uri_comp
+        : encodeURIComponent;
     var uri_comp_val = opt.bin ? E.encodeURIComponent_bin : uri_comp;
     for (var i in param)
     {
@@ -174,13 +175,6 @@ E.qs = function(param, opt){
     return qs;
 };
 
-function clone(src){
-    var dst = {};
-    for (var prop in src)
-        dst[prop] = src[prop];
-    return dst;
-}
-
 // uri(opt)
 // uri(uri, qs, hash)
 E.uri = function(uri, qs, hash){
@@ -189,7 +183,7 @@ E.uri = function(uri, qs, hash){
         opt = {uri: uri, _qs: qs, hash: hash};
     else
     {
-        opt = clone(uri);
+        opt = Object.assign({}, uri);
         opt._qs = opt.qs;
         opt.qs = undefined;
     }

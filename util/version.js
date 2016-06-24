@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, es6:false*/
+'use strict'; /*jslint node:true, es6:false*/ // ios
 require('./config.js');
 var fs = require('fs');
 var version;

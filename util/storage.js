@@ -1,6 +1,6 @@
 // LICENSE_CODE ZON ISC
 'use strict'; /*jslint browser:true*/
-define(['jquery', 'jquery_cookie'], function($, jquery_cookie){
+define(['cookie'], function(cookie){
 var E = {};
 var storage;
 
@@ -15,9 +15,9 @@ function select_local_storage(){ storage = localStorage; }
 
 function select_cookies(domain){
     var cookie_opt = {domain: '.'+domain, path: '/', expires: 30};
-    storage = {getItem: $.cookie,
-        setItem: function(key, val){ $.cookie(key, val, cookie_opt); },
-        removeItem: function(key){ $.removeCookie(key, cookie_opt); },
+    storage = {getItem: cookie.get,
+        setItem: function(key, val){ cookie.set(key, val, cookie_opt); },
+        removeItem: function(key){ cookie.remove(key, cookie_opt); },
     };
 }
 

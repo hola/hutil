@@ -20,12 +20,10 @@ var E = {};
 E._is_mocha = undefined;
 E.is_mocha = function(){
     if (E._is_mocha!==undefined)
-	return E._is_mocha;
-    if (typeof global!='undefined' && global.mocha_running)
-        return E._is_mocha = true;
-    if (typeof module=='undefined' || !module.exports)
-        return E._is_mocha = false;
-    return E._is_mocha = /\/_mocha/.test(process.argv[1]||'');
+        return E._is_mocha;
+    if (typeof process!='undefined')
+        return E._is_mocha = process.env.IS_MOCHA||false;
+    return E._is_mocha = false;
 };
 
 E.is_lxc = function(){ return is_node && +process.env.LXC; };
@@ -103,6 +101,7 @@ E.clone_deep = function(obj){
     return _clone_deep(obj);
 };
 
+// prefer to normally Object.assign() instead of extend()
 E.extend = function(obj){ // like _.extend
     for (var i=1; i<arguments.length; i++)
     {
@@ -257,6 +256,8 @@ E.set = function(o, path, value){
 };
 var has_unique = {};
 E.has = function(o, path){ return E.get(o, path, has_unique)!==has_unique; };
+E.own = function(o, prop){
+    return Object.prototype.hasOwnProperty.call(o, prop); };
 
 E.bool_lookup = function(a, split){
     var ret = {}, i;
@@ -301,5 +302,15 @@ else
 	    configurable: true}});
     };
 }
+
+// ctor must only have one prototype level
+// XXX vladislav: ES6 class is not supported for ctor
+E.inherit_init = function(obj, ctor, params){
+    var orig_proto = Object.getPrototypeOf(obj);
+    var ctor_proto = Object.assign({}, ctor.prototype);
+    Object.setPrototypeOf(ctor_proto, orig_proto);
+    Object.setPrototypeOf(obj, ctor_proto);
+    return ctor.apply(obj, params);
+};
 
 return E; }); }());

@@ -10,6 +10,20 @@ else
 define([], function(){
 var E = {};
 
+var proto_slice = Array.prototype.slice;
+E.copy = function(a){
+    switch (a.length)
+    {
+    case 0: return [];
+    case 1: return [a[0]];
+    case 2: return [a[0], a[1]];
+    case 3: return [a[0], a[1], a[2]];
+    case 4: return [a[0], a[1], a[2], a[3]];
+    case 5: return [a[0], a[1], a[2], a[3], a[4]];
+    default: return proto_slice.call(a);
+    }
+};
+
 E.push = function(a){
     for (var i=1; i<arguments.length; i++)
     {

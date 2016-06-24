@@ -251,19 +251,19 @@ E.add = function(d, duration){
 
 E.time_ago = function(d, until_date){
     var _ms = E.get(until_date)-E.get(d);
-    if (_ms < 2*ms.SEC)
+    if (_ms<2*ms.SEC)
         return 'right now';
-    if (_ms < 2*ms.MIN)
+    if (_ms<2*ms.MIN)
         return Math.round(_ms/ms.SEC)+' sec ago';
-    if (_ms < 2*ms.HOUR)
+    if (_ms<2*ms.HOUR)
         return Math.round(_ms/ms.MIN)+' min ago';
-    if (_ms < 2*ms.DAY)
+    if (_ms<2*ms.DAY)
         return Math.round(_ms/ms.HOUR)+' hour ago';
-    if (_ms < 2*ms.WEEK)
+    if (_ms<2*ms.WEEK)
         return Math.round(_ms/ms.DAY)+' days ago';
-    if (_ms < 2*ms.MONTH)
+    if (_ms<2*ms.MONTH)
         return Math.round(_ms/ms.WEEK)+' weeks ago';
-    if (_ms < 2*ms.YEAR)
+    if (_ms<2*ms.YEAR)
         return Math.round(_ms/ms.MONTH)+' month ago';
     return Math.round(_ms/ms.YEAR)+' years ago';
 };
@@ -430,7 +430,7 @@ E.strftime = function(fmt, d, opt){
         return hours==0 ? 12 : hours>12 ? hours-12 : hours; }
     function ord_str(n){
         var i = n % 10, ii = n % 100;
-        if ((ii >= 11 && ii <= 13) || i==0 || i>=4)
+        if ((ii>=11 && ii<=13) || i==0 || i>=4)
             return 'th';
         switch (i)
         {
@@ -483,7 +483,7 @@ E.strftime = function(fmt, d, opt){
 	// below.
 	if (typeof tz=='string')
 	{
-	    var sign = tz[0] == '-' ? -1 : 1;
+	    var sign = tz[0]=='-' ? -1 : 1;
 	    var hours = parseInt(tz.slice(1, 3), 10);
 	    var mins = parseInt(tz.slice(3, 5), 10);
 	    tz = sign*(60*hours)+mins;

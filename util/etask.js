@@ -51,6 +51,7 @@ E.assert_extra = +env.ETASK_ASSERT_EXTRA; // to debug internal etask bugs
 E.nextTick = process.nextTick;
 // XXX arik/romank: hack, rm set_zerr, get zerzerrusing require
 E.set_zerr = function(_zerr){ zerr = _zerr; };
+E.events = new events();
 function stack_get(){
     // new Error(): 200K per second
     // http://jsperf.com/error-generation
@@ -96,38 +97,19 @@ function Etask(opt, states){
     this.child = [];
     this.child_guess = [];
     this.cur_state = -1;
-    this.states = states;
+    this.states = [];
     this._stack = Etask.use_bt ? stack_get() : undefined;
     this.tm_create = Date.now();
     this.info = {};
     var idx = this.states.idx = {};
-    for (var i=0; i<this.states.length; i++)
+    for (var i=0; i<states.length; i++)
     {
-        var state = this.states[i], t;
-        if (typeof state=='function')
-        {
-            t = this._get_func_type(state);
-            state = this.states[i] = {f: state, label: t.label,
-                try_catch: t.try_catch, catch: t.catch, ensure: t.ensure,
-                cancel: t.cancel, sig: undefined};
-        }
-        else if (typeof state=='object')
-        {
-            assert(state.f, 'invalid state type or missing func '+state);
-            t = this._get_func_type(state.f);
-            if (t.label && !state.label)
-                state.label = t.label;
-            if (t.try_catch)
-                state.try_catch = t.try_catch;
-            if (t.catch)
-                state.catch = t.catch;
-            if (t.ensure)
-                state.ensure = t.ensure;
-            if (t.cancel)
-                state.cancel = t.cancel;
-        }
-        else
+        var pstate = states[i], t;
+        if (typeof pstate!='function')
             assert(0, 'invalid state type');
+        t = this._get_func_type(pstate);
+        var state = {f: pstate, label: t.label, try_catch: t.try_catch,
+            catch: t.catch, ensure: t.ensure, cancel: t.cancel, sig: undefined};
         if (i==0 && opt.state0_args)
         {
             state.f = state.f.bind.apply(state.f,
@@ -149,6 +131,7 @@ function Etask(opt, states){
             assert(this.cancel===undefined, 'more than 1 cancel$');
             this.cancel = i;
         }
+        this.states[i] = state;
     }
     E.root.push(this);
     var in_run = E.in_run_top();
@@ -162,12 +145,12 @@ function Etask(opt, states){
         opt.init.call(this);
     if (opt.async)
     {
-        var wait_retval = this._set_wait_retval();
+        var wait_retval = this._set_wait_retval(), _this = this;
         E.nextTick(function(){
-            if (this.running!==undefined)
+            if (_this.running!==undefined)
                 return;
-            this._got_retval(wait_retval);
-        }.bind(this));
+            _this._got_retval(wait_retval);
+        });
     }
     else
         this._next_run();
@@ -228,6 +211,8 @@ E.prototype._complete = function(){
         zerr.debug(this._name+': close');
     this.tm_completed = Date.now();
     this.parent_type = this.up ? 'call' : 'spawn';
+    if (this.error)
+        this.emit_safe('uncaught', this.error);
     if (this._ensure!==undefined)
     {
         var ret = this._call_safe(this.states[this._ensure].f);
@@ -235,6 +220,8 @@ E.prototype._complete = function(){
             this._set_retval(ret);
     }
     this.emit_safe('ensure');
+    if (this.error && !this.up && !this.parent && !this.parent_guess)
+        E.events.emit('uncaught', this);
     if (this.parent)
         this.parent.emit('child', this);
     if (this.up && (this.down || this.child.length))
@@ -366,8 +353,7 @@ E.prototype._set_retval = function(ret){
 E.prototype._set_wait_retval = function(){
     return this.wait_retval = new Etask_wait(this, 'wait_int'); };
 E.in_run = [];
-E.in_run_top = function(){
-    return E.in_run[E.in_run.length-1]; };
+E.in_run_top = function(){ return E.in_run[E.in_run.length-1]; };
 E.prototype._run = function(){
     var rv = {ret: undefined, err: undefined};
     while (1)
@@ -730,8 +716,12 @@ Etask_wait.prototype.econtinue = function(res){
         return;
     this.et.econtinue(res);
 };
+Etask_wait.prototype.econtinue_fn = function(){
+    return this.econtinue.bind(this); };
 Etask_wait.prototype.ethrow = function(err){
     return this.econtinue(E.err(err)); };
+Etask_wait.prototype.ethrow_fn = function(){
+    return this.ethrow.bind(this); };
 E.prototype.wait = function(timeout){
     return new Etask_wait(this, 'wait', timeout); };
 E.prototype.wait_child = function(child, timeout, cond){

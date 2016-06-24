@@ -12,14 +12,14 @@ var E = rate_limit;
 
 function rate_limit(rl, ms, n){
     var now = Date.now();
-    if (!rl.count || rl.ts+ms < now)
+    if (!rl.count || rl.ts+ms<now)
     {
         rl.count = 1;
         rl.ts = now;
         return true;
     }
     rl.count++;
-    return rl.count <= n;
+    return rl.count<=n;
 }
 
 E.leaky_bucket = function leaky_bucket(size, rate){
@@ -38,7 +38,7 @@ E.leaky_bucket.prototype.inc = function(inc){
     if (this.level<0)
 	this.level = 0;
     var new_level = this.level + inc;
-    if (new_level > this.size)
+    if (new_level>this.size)
 	return false;
     this.level = new_level;
     return true;

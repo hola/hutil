@@ -15,7 +15,7 @@ const mutex = require('./mutex.js');
 const date = require('./date.js');
 const zescape = require('./escape.js');
 const E = exports;
-const assign = Object.assign, SEC = date.ms.SEC;
+const assign = Object.assign, SEC = date.ms.SEC, ef = etask.ef;
 let mongo_mutex = {};
 let open_conns = {};
 let env = process.env;
@@ -101,7 +101,7 @@ function*(){
     zerr.debug('mongodb findOne %s %O', zmongo.name, selector);
     try { item = yield etask.nfn_apply(zmongo.collection, '.findOne',
         [selector, opt]); }
-    catch(e){ handle_error(zmongo, 'findOne', e, selector); }
+    catch(e){ ef(e); handle_error(zmongo, 'findOne', e, selector); }
     log_query('findOne', zmongo.name, selector, null, item, this);
     return item;
 });
@@ -122,7 +122,7 @@ E.find_all = (zmongo, selector, opt)=>etask(function*mongo_find_all(){
     if (opt.skip)
         cursor.skip(opt.skip);
     try { items = yield etask.nfn_apply(cursor, '.toArray', []); }
-    catch(e){ handle_error(zmongo, 'find.toArray', e, selector); }
+    catch(e){ ef(e); handle_error(zmongo, 'find.toArray', e, selector); }
     log_query('toArray', zmongo.name, selector, null, items, this);
     return items;
 });
@@ -138,7 +138,7 @@ function*(){
     let res;
     try { res = yield etask.nfn_apply(zmongo.collection, '.findAndModify',
         [selector, sort, update, opt]); }
-    catch(e){ handle_error(zmongo, 'findAndModify', e, selector); }
+    catch(e){ ef(e); handle_error(zmongo, 'findAndModify', e, selector); }
     log_query('findAndModify', zmongo.name, selector, update, res, this);
     return res.value;
 });
@@ -150,7 +150,9 @@ E.get_next = (cursor, opt)=>etask(function*mongo_get_next(){
     zerr.debug('mongodb nextObject.');
     let res;
     try { res = yield etask.nfn_apply(cursor, '.nextObject', []); }
-    catch(e){ zexit('failed mongodb nextObject: %s %O', e, cursor.selector); }
+    catch(e){ ef(e);
+        zexit('failed mongodb nextObject: %s %O', e, cursor.selector);
+    }
     log_query('nextObject', cursor.zmongo.name, cursor.selector, null, res,
         this);
     return res;
@@ -180,7 +182,7 @@ E.update = (zmongo, selector, update, opt)=>etask(function*mongo_update(){
     let res;
     try { res = yield etask.nfn_apply(zmongo.collection, '.update',
         [selector, update, opt]); }
-    catch(e){ handle_error(zmongo, 'update', e, selector, update); }
+    catch(e){ ef(e); handle_error(zmongo, 'update', e, selector, update); }
     log_query('update', zmongo.name, selector, update, res, this);
     return res;
 });
@@ -216,8 +218,10 @@ function*(){
     mongo_slow(this, opt, 'update_part', zmongo, selector);
     zerr.debug('mongodb update selector: %O', selector);
     try { res = yield etask.nfn_apply(zmongo.collection, '.update',
-        [selector, modifier, opt]); }
-    catch(e){ handle_error(zmongo, 'update_part', e, selector, update); }
+        [selector, modifier, opt]);
+    } catch(e){ ef(e);
+        handle_error(zmongo, 'update_part', e, selector, update);
+    }
     log_query('update_part', zmongo.name, selector, modifier, res, this);
 });
 
@@ -231,7 +235,7 @@ return etask(function*mongo_atomic_update(){
     try { yield E.find_one(zmongo, selector); }
     catch(e){ zerr(e); throw e; }
     try { yield etask.nfn_apply(zmongo.db, '.eval', [f, params]); }
-    catch(e){ handle_error(zmongo, 'eval', e, selector); throw e; }
+    catch(e){ ef(e); handle_error(zmongo, 'eval', e, selector); throw e; }
 }); };
 
 E.upload_collection = (zmongo, docs, opt)=>etask('mongo upload_collection',
@@ -272,7 +276,7 @@ E.save = (zmongo, obj, opt)=>etask(function*mongo_save(){
     zerr.debug('mongodb save');
     let res;
     try { res = yield etask.nfn_apply(zmongo.collection, '.save', [obj]); }
-    catch(e){ handle_error(zmongo, 'save', e, obj); }
+    catch(e){ ef(e); handle_error(zmongo, 'save', e, obj); }
     log_query('save', zmongo.name, obj, null, res, this);
     return res._id;
 });
@@ -285,7 +289,7 @@ E.insert = (zmongo, obj, opt)=>etask(function*mongo_insert(){
     zerr.debug('mongodb insert');
     let res;
     try { res = yield etask.nfn_apply(zmongo.collection, '.insert', [obj]); }
-    catch(e){ handle_error(zmongo, 'insert', e, obj); }
+    catch(e){ ef(e); handle_error(zmongo, 'insert', e, obj); }
     log_query('insert', zmongo.name, obj, null, res, this);
     return res;
 });
@@ -300,8 +304,11 @@ E.remove = (zmongo, selector, opt)=>etask(function*mongo_remove(){
     let res;
     try { res = yield etask.nfn_apply(zmongo.collection, '.remove',
         [selector]); }
-    catch(e){ handle_error(zmongo, 'remove', e, selector); }
+    catch(e){ ef(e); handle_error(zmongo, 'remove', e, selector); }
     log_query('remove', zmongo.name, selector, null, res, this);
+    // XXX vladimir: verify and make default
+    if (opt.retval)
+        return res;
 });
 
 E.count = (zmongo, selector, opt)=>etask(function*mongo_count(){
@@ -314,7 +321,7 @@ E.count = (zmongo, selector, opt)=>etask(function*mongo_count(){
     let count;
     try { count = yield etask.nfn_apply(zmongo.collection, '.count',
         [selector]); }
-    catch(e){ handle_error(zmongo, 'count', e, selector); }
+    catch(e){ ef(e); handle_error(zmongo, 'count', e, selector); }
     log_query('count', zmongo.name, selector, null, count, this);
     return count;
 });
@@ -329,7 +336,7 @@ E.aggregate = (zmongo, pipeline, opt)=>etask(function*mongo_aggregate(){
     let agg;
     try { agg = yield etask.nfn_apply(zmongo.collection, '.aggregate',
         [pipeline]); }
-    catch(e){ handle_error(zmongo, 'aggregate', e, pipeline); }
+    catch(e){ ef(e); handle_error(zmongo, 'aggregate', e, pipeline); }
     log_query('aggregate', zmongo.name, pipeline, null, agg, this);
     return agg;
 });
@@ -354,7 +361,7 @@ E.initialize_unordered_bulk_op = (zmongo, opt)=>
 E.execute = (bulk, opt)=>etask(function*mongo_bulk_execute(){
     zerr.debug('mongodb bulk execute');
     try { return yield etask.nfn_apply(bulk, '.execute', [opt]); }
-    catch(e){ zexit('failed mongodb bulk execute: %s', e); }
+    catch(e){ ef(e); zexit('failed mongodb bulk execute: %s', e); }
 });
 
 E.options = zmongo=>etask(function*mongo_options(){
@@ -364,7 +371,7 @@ E.options = zmongo=>etask(function*mongo_options(){
     zerr.debug('mongodb options %s', zmongo.name);
     let options;
     try { options = yield etask.nfn_apply(zmongo.collection, '.options', []); }
-    catch(e){ handle_error(zmongo, 'options', e); }
+    catch(e){ ef(e); handle_error(zmongo, 'options', e); }
     log_query('options', zmongo.name, {}, null, options, this);
     return options;
 });
@@ -431,7 +438,7 @@ E.connect = (conn, db, collection)=>etask(function*mongo_connect(){
             config.db.bufferMaxEntries = +opt.buffer_max_entries;
         try { _db = yield etask.nfn_apply(_mongodb.MongoClient, '.connect',
             [url, config]); }
-        catch(e){
+        catch(e){ ef(e);
             if (opt.no_zexit)
             {
                 zerr('mongodb stub %s/%s %O', db, collection, e);
@@ -447,7 +454,7 @@ E.connect = (conn, db, collection)=>etask(function*mongo_connect(){
         open_conns[url] = _db;
     try { _collection = yield etask.nfn_apply(_db, '.collection',
         [collection]); }
-    catch(e){
+    catch(e){ ef(e);
         if (opt.no_zexit)
         {
             zerr('mongodb stub %s/%s %O', db, collection, e);
@@ -486,7 +493,7 @@ E.drop_collection = zmongo=>etask(function*mongo_drop_collection(){
     if (check_stub(zmongo))
         return null;
     try { return yield etask.nfn_apply(zmongo.collection, '.drop', []); }
-    catch(e){ handle_error(zmongo, 'drop', e); }
+    catch(e){ ef(e); handle_error(zmongo, 'drop', e); }
 });
 
 E.serverStatus = (zmongo, _opt)=>{
@@ -504,14 +511,14 @@ E.command = (zmongo, command, opt)=>etask(function*mongo_command(){
     if (opt)
         args.push(opt);
     try { return yield etask.nfn_apply(zmongo.db, '.command', args); }
-    catch(e){ handle_error(zmongo, 'command', e); }
+    catch(e){ ef(e); handle_error(zmongo, 'command', e); }
 });
 E.use_power_of_2_sizes = (zmongo, collection, val)=>etask(
     'mongo use_power_of_2_sizes',
 function*(){
     try { return yield E.command(zmongo,
         {collMod: collection, usePowerOf2Sizes: val!==false}); }
-    catch(e){ handle_error(zmongo, 'usePowerOf2Sizes', e); }
+    catch(e){ ef(e); handle_error(zmongo, 'usePowerOf2Sizes', e); }
 });
 
 E.current_op = (zmongo, query)=>zmongo.db.admin().command(
@@ -612,7 +619,7 @@ function is_object(x){ return x && x.constructor===Object; }
 
 function do_push(changeset, path, values){
     changeset.$push = changeset.$push||{};
-    if (values.length == 1)
+    if (values.length==1)
         changeset.$push[path] = values[0];
     else
         changeset.$push[path] = {$each: values};

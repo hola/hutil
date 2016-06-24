@@ -190,7 +190,7 @@ E.scaled_number = function(num, opt){
     if (num>=base-1)
         num = Math.trunc(num);
     var str = num.toFixed(num<1 ? 3 : num<10 ? 2 : num<100 ? 1 : 0);
-    return sign+str.replace(/\.0*$/, '')+scale.s+_per();
+    return sign+str.replace(/\.0*$/, '')+(opt.space ? ' ' : '')+scale.s+_per();
 };
 
 E.format_per = function(per){
@@ -251,8 +251,10 @@ E.JSON_stringify = function(obj, opt){
         re_class = opt.vm_context ?
             vm.runInContext('RegExp', opt.vm_context) : RegExp;
         prev_re = re_class.prototype.toJSON;
-        re_class.prototype.toJSON = function(){
-            return {__RegExp__: this.toString()}; };
+        Object.defineProperty(re_class.prototype, 'toJSON', {
+            value: function(){ return {__RegExp__: this.toString()}; },
+            writable: true,
+        });
     }
     try { s = JSON.stringify(obj, opt.replacer, opt.spaces); }
     finally {
@@ -268,14 +270,15 @@ E.JSON_stringify = function(obj, opt){
     return s;
 };
 
-function parse_leaf(v){
+function parse_leaf(v, opt){
+    opt = Object.assign({date: 1, re: 1, func: 1}, opt);
     if (!v || typeof v!='object' || Object.keys(v).length!=1)
         return v;
-    if (v.__ISODate__)
+    if (v.__ISODate__ && opt.date)
         return new Date(v.__ISODate__);
-    if (v.__Function__)
+    if (v.__Function__ && opt.func)
         return E.build_function(E.parse_function(v.__Function__));
-    if (v.__RegExp__)
+    if (v.__RegExp__ && opt.re)
     {
         var parsed = /^\/(.*)\/(\w*)$/.exec(v.__RegExp__);
         if (!parsed)
@@ -285,23 +288,23 @@ function parse_leaf(v){
     return v;
 }
 
-E.JSON_parse = function(s){
-    return JSON.parse(s, function(k, v){ return parse_leaf(v); }); };
+E.JSON_parse = function(s, opt){
+    return JSON.parse(s, function(k, v){ return parse_leaf(v, opt); }); };
 
-E.JSON_parse_obj = function(v){
+E.JSON_parse_obj = function(v, opt){
     if (!v || typeof v!='object')
         return v;
     if (Array.isArray(v))
     {
         for (var i = 0; i<v.length; i++)
-            v[i] = E.JSON_parse_obj(v[i]);
+            v[i] = E.JSON_parse_obj(v[i], opt);
         return v;
     }
-    var v2 = parse_leaf(v);
+    var v2 = parse_leaf(v, opt);
     if (v2!==v)
         return v2;
     for (var key in v)
-        v[key] = E.JSON_parse_obj(v[key]);
+        v[key] = E.JSON_parse_obj(v[key], opt);
     return v;
 };
 

@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, browser:true*/
+'use strict'; /*jslint node:true, browser:true, -W103*/
 (function(){
 var define;
 var is_node_ff = typeof module=='object' && module.exports;
@@ -33,6 +33,18 @@ E.t.object_assign = function(obj){
     return obj;
 };
 add_prop(Object, 'assign', E.t.object_assign);
+var can_set_proto = {__proto__: []} instanceof Array;
+E.t.object_setPrototypeOf = function(obj, proto){
+    if (can_set_proto)
+        obj.__proto__ = proto;
+    else // IE9/IE10
+    {
+        for (var prop in proto)
+            obj[prop] = proto[prop];
+    }
+    return true;
+};
+add_prop(Object, 'setPrototypeOf', E.t.object_setPrototypeOf);
 
 E.t.string_startsWith = function(head){
     head = ''+head;
@@ -58,6 +70,18 @@ E.t.string_trimLeft = function(){ return this.replace(/^\s+/, ''); };
 add_prop(String.prototype, 'trimLeft', E.t.string_trimLeft);
 E.t.string_trimRight = function(){ return this.replace(/\s+$/, ''); };
 add_prop(String.prototype, 'trimRight', E.t.string_trimRight);
+E.t.string_padStart = function(len, val){
+    val = val||' ';
+    var l = len-this.length;
+    return l<=0 ? this : val.repeat(Math.ceil(l/val.length)).slice(0, l)+this;
+};
+add_prop(String.prototype, 'padStart', E.t.string_padStart);
+E.t.string_padEnd = function(len, val){
+    val = val||' ';
+    var l = len-this.length;
+    return l<=0 ? this : this+val.repeat(Math.ceil(l/val.length)).slice(0, l);
+};
+add_prop(String.prototype, 'padEnd', E.t.string_padEnd);
 
 E.t.array_includes = function(search, index){
     return this.indexOf(search, index)>=0; };
@@ -132,9 +156,14 @@ E.t.math_trunc = function(x){
 add_prop(Math, 'trunc', E.t.math_trunc);
 
 function ie9_console(){
-    // in ie9 console is undefined if no dev console open
-    if (typeof window!='object' || window.console)
+    if (typeof window!='object')
         return;
+    if (window.console)
+    {
+        if (!window.console.debug) // ie9 has no debug() in native console
+            window.console.debug = window.console.info;
+        return;
+    }
     var console = window.console = {};
     ['assert', 'clear', 'count', 'debug', 'dir', 'dirxml',
         'error', 'exception', 'group', 'groupCollapsed', 'groupEnd', 'info',

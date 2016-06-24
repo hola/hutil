@@ -1,6 +1,6 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, es6:false*/
-// this file is used both by node and by ff_addon.
+'use strict'; /*jslint node:true, es6:false*/ // ios
+// this file is used both by node, ff_addon and ios.
 var is_node = typeof module=='object' && module.exports && module.children;
 var is_ff_addon = typeof module=='object' && module.uri
     && !module.uri.indexOf('resource://');

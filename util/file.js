@@ -6,7 +6,8 @@ const crypto = require('crypto');
 const rimraf = require('rimraf');
 const path = require('path');
 const fs = require('fs');
-const E = exports;
+const StringDecoder = require('string_decoder').StringDecoder;
+const E = exports, assign = Object.assign;
 // file.xxx_e() throw exceptions. file.xxx() return null/false on fail.
 E.errno = 0; // an integer/string error code
 // XXX sergey: please implement
@@ -30,58 +31,44 @@ E.read_e = (filename, opt)=>{
         opt = 'utf8';
     return fs.readFileSync(filename, opt);
 };
-E.fread_cb_e = (fd, offset, length, pos, cb)=>{
+E.fread_cb_e = (fd, pos, cb)=>{
     let res, buf = new Buffer(E.read_buf_size);
-    while (res = fs.readSync(fd, buf, offset, length, pos))
+    while (res = fs.readSync(fd, buf, 0, buf.length, pos))
     {
-        if (cb(buf, res, pos))
+        if (cb(buf.slice(0, res), pos))
             return true;
         pos += res;
     }
     return true;
 };
-E.read_cb_e = (filename, offset, length, pos, cb)=>{
+E.read_cb_e = (filename, pos, cb)=>{
     let fd = fs.openSync(filename, 'r');
-    try { return E.fread_cb_e(fd, offset, length, pos, cb); }
+    try { return E.fread_cb_e(fd, pos, cb); }
     finally { fs.closeSync(fd); }
 };
-let bytes2str = (bytes, encoding)=>{
-    let ret = new Buffer(bytes).toString(encoding||'utf8');
-    // strip \r symbols on non-unix endlines
-    if (ret[ret.length-1]=='\r')
-        return ret.substr(0, ret.length-1);
-    return ret;
-};
-let gen_read_line_cb = (bytes, cb, opt)=>(buf, read)=>{
-    opt = opt||{};
-    let nl = '\n'.charCodeAt(), idx, last_idx = 0;
-    let size = read ? Math.min(buf.length, read) : buf.length;
-    for (idx=0; idx<size; idx++)
+E.fread_line_cb_e = (fd, cb, opt)=>{
+    opt = assign({encoding: 'utf8', buf_size: E.read_buf_size}, opt);
+    cb = cb||(()=>false);
+    let read, buf = new Buffer(opt.buf_size);
+    let strbuf = '', lf_idx, decoder = new StringDecoder(opt.encoding);
+    while (read = fs.readSync(fd, buf, 0, buf.length))
     {
-        if (buf[idx]==nl)
+        strbuf += decoder.write(buf.slice(0, read));
+        while ((lf_idx = strbuf.indexOf('\n'))>=0)
         {
-            bytes.push.apply(bytes, buf.slice(last_idx, idx));
-            let line = bytes2str(bytes, opt.encoding);
-            bytes.length = 0;
-            if (cb && cb(line))
+            if (cb(strbuf.slice(0, lf_idx-(strbuf[lf_idx-1]=='\r' ? 1 : 0))))
                 return true;
-            last_idx = idx+1;
+            strbuf = strbuf.slice(lf_idx+1);
         }
     }
-    bytes.push.apply(bytes, buf.slice(last_idx, idx));
-    return opt.buf_size && size<opt.buf_size;
+    if (strbuf)
+        cb(strbuf);
+    return true;
 };
 E.read_line_cb_e = (filename, cb, opt)=>{
-    opt = opt||{};
-    opt.buf_size = opt.buf_size||E.read_buf_size;
-    // collect bytes in array first, and later translate to utf8 to avoid
-    // bugs in multi-byte utf8 chars at block boundry
-    let bytes = [];
-    E.read_cb_e(filename, 0, E.read_buf_size, 0,
-        gen_read_line_cb(bytes, cb, opt));
-    if (bytes.length)
-        cb(bytes2str(bytes));
-    return true;
+    let fd = fs.openSync(filename, 'r');
+    try { return E.fread_line_cb_e(fd, cb, opt); }
+    finally { fs.closeSync(fd); }
 };
 E.read_line_e = filename=>{
     let ret;
@@ -90,20 +77,19 @@ E.read_line_e = filename=>{
 };
 E.read_lines_e = filename=>{
     let ret = E.read_e(filename).split(/\r?\n/);
-    if (ret[ret.length-1]==='')
+    if (ret[ret.length-1]=='')
         ret.pop();
     return ret;
 };
 E.fread_e = (fd, start, size)=>{
-    let buf, count = 0, ret = '';
-    start = start||0;
-    buf = new Buffer(E.read_buf_size);
-    E.fread_cb_e(fd, 0, E.read_buf_size, start, (buf, read)=>{
-        count += read;
-        let len = size && size<=count ? Math.min(read, size) : read;
-        ret += buf.slice(0, len);
-        if (size && count<=0)
-            return true;
+    let decoder = new StringDecoder(), rest = size;
+    let ret = '', append_ret = buf=>ret += decoder.write(buf);
+    E.fread_cb_e(fd, start, rest===undefined ? append_ret : buf=>{
+        rest -= buf.length;
+        if (rest<0)
+            buf = buf.slice(0, rest);
+        append_ret(buf);
+        return rest<=0;
     });
     return ret;
 };
@@ -158,7 +144,7 @@ E.mtime_e = file=>+fs.statSync(file).mtime;
 function mkdirp(p, mode){
     if (mode===undefined)
         mode = 0o777 & ~(process.umask&&process.umask());
-    if (typeof mode==='string')
+    if (typeof mode=='string')
         mode = parseInt(mode, 8);
     let made = null;
     p = path.resolve(p);
@@ -221,8 +207,7 @@ function copy_file(src, dst, opt){
     mode = 'mode' in opt ? opt.mode : stat.mode & 0o777;
     fdw = fs.openSync(dst, 'w', mode);
     try {
-        E.read_cb_e(src, 0, E.read_buf_size, 0, (buf, read)=>{
-            fs.writeSync(fdw, buf, 0, read); });
+        E.read_cb_e(src, 0, buf=>void(fs.writeSync(fdw, buf, 0, buf.length)));
         let owner = get_owner(stat, opt);
         if (owner)
             fs.fchownSync(fdw, owner.user, owner.group);
@@ -230,18 +215,26 @@ function copy_file(src, dst, opt){
         if (opt.preserve_ts)
             fs.futimesSync(fdw, stat.atime, stat.mtime);
     } finally { fs.closeSync(fdw); }
+    if (opt.verbose)
+        console.log(`Copy: ${src}->${dst}`);
     return true;
 }
 function copy_dir(src, dst, opt){
     let files = E.readdir_e(src);
-    for (let f=0; f<files.length; f++)
+    for (let f of files)
     {
-        if (!E.copy_e(src+'/'+files[f], dst+'/'+files[f], opt))
+        if (!E.copy_e(src+'/'+f, dst+'/'+f, opt))
             return false;
     }
     return true;
 }
 E.copy_e = (src, dst, opt)=>{
+    if (opt && opt.exclude && opt.exclude.test(src, dst))
+    {
+        if (opt.verbose)
+            console.log(`Skipped coping: ${src}->${dst}`);
+        return true;
+    }
     src = E.normalize(src);
     dst = E.normalize(dst);
     return (E.is_dir(src) ? copy_dir : copy_file)(src, dst, opt);
@@ -292,8 +285,7 @@ E.symlink_e = (src, dst, opt)=>{
 };
 E.hashsum_e = (filename, type)=>{
     let hash = crypto.createHash(type||'md5');
-    E.read_cb_e(filename, 0, E.read_buf_size, 0, (buf, read)=>{
-        hash.update(buf.slice(0, read)); });
+    E.read_cb_e(filename, 0, buf=>void(hash.update(buf)));
     return hash.digest('hex');
 };
 let hash_re = /([0-9a-fA-F]+) [ |*](.*)/;
@@ -353,16 +345,16 @@ E.realpath_e = path=>fs.realpathSync(path);
 E.stat_e = path=>fs.statSync(path);
 E.lstat_e = path=>fs.lstatSync(path);
 let err_retval = {
-    read: null, read_line: null, read_lines: null, fread: null, find: null,
+    read: null, read_line: null, read_lines: null, fread: null,
     tail: null, head: null, size: null, mkdirp: null, mkdirp_file: null,
     hashsum: null, stat: null, lstat: null, realpath: null, readlink: null,
     hashsum_check: false, fread_cb: false, read_cb: false, read_line_cb: false,
     write: false, write_lines: false, append: false, unlink: false,
     rmdir: undefined, rm_rf: false, touch: false, readdir: [], copy: false,
-    link: false, link_r: false, symlink: false, mtime: -1,
+    link: false, link_r: false, symlink: false, mtime: -1, find: null
 };
-Object.keys(err_retval).forEach(method=>
-    E[method] = errno_wrapper.bind(null, E[method+'_e'], err_retval[method]));
+for (let method in err_retval)
+    E[method] = errno_wrapper.bind(null, E[method+'_e'], err_retval[method]);
 
 E.exists = path=>{
     try { fs.accessSync(path); }
@@ -403,53 +395,6 @@ E.is_exec = path=>{
     try { fs.accessSync(path, fs.X_OK); }
     catch(e){ return false; }
     return true;
-};
-function is_binary(filename){
-    filename = E.normalize(filename);
-    if (!E.is_file(filename))
-        throw new Error('Not a file');
-    let fd = fs.openSync(filename, 'r');
-    let buf = new Buffer(E.read_buf_size);
-    let size = fs.readSync(fd, buf, 0, E.read_buf_size, 0);
-    if (!size)
-        throw new Error('Empty file');
-    // UTF-8 BOM
-    if (size >= 3 && buf[0]==0xEF && buf[1]==0xBB && buf[2]==0xBF)
-        return false;
-    let bytes = 0;
-    for (let i=0; i<size; i++)
-    {
-        if (!buf[i])
-            return true;
-        if ((buf[i]<7 || buf[i]>14) && (buf[i]<32 || buf[i]>127))
-        {
-            // UTF-8 detection
-            if (buf[i]>193 && buf[i]<224 && i+1<size)
-            {
-                i++;
-                if (buf[i]>127 && buf[i]<192)
-                    continue;
-            }
-            else if (buf[i]>223 && buf[i]<240 && i+2<size)
-            {
-                i++;
-                if (buf[i]>127 && buf[i]<192 && buf[i+1]>127 && buf[i+1]<192)
-                {
-                    i++;
-                    continue;
-                }
-            }
-            bytes++;
-            // Read at least 32 bytes before making a decision
-            if (i>32 && bytes*100/size > 10)
-                return true;
-        }
-    }
-    return bytes*100/size > 10;
-}
-E.is_binary = filename=>{
-    try { return is_binary(filename); }
-    catch(e){ return false; }
 };
 E.which = bin=>{
     bin = E.normalize(bin);

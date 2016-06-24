@@ -6,12 +6,13 @@ const string = require('./string.js');
 const zerr = require('./zerr.js');
 const file = require('./file.js');
 const array = require('./array.js');
+const zutil = require('./util.js');
 const assert = require('assert');
 const cli = require('./cli.js');
+const exec = require('./exec.js');
 const os = require('os');
 const E = exports;
-const env = process.env;
-const qw = string.qw;
+const env = process.env, qw = string.qw, KB = 1024, MB = KB*KB;
 
 var distro_release;
 var procfs_fmt = {
@@ -50,10 +51,10 @@ E.meminfo_parse = function(info){
 	assert(m);
 	switch (m[1])
 	{
-	case 'MemTotal': mem.memtotal = m[2]*1024; break;
-	case 'MemFree': mem.memfree = m[2]*1024; break;
-	case 'Buffers': mem.buffers = m[2]*1024; break;
-	case 'Cached': mem.cached = m[2]*1024; break;
+	case 'MemTotal': mem.memtotal = m[2]*KB; break;
+	case 'MemFree': mem.memfree = m[2]*KB; break;
+	case 'Buffers': mem.buffers = m[2]*KB; break;
+	case 'Cached': mem.cached = m[2]*KB; break;
 	}
     }
     return mem;
@@ -79,7 +80,7 @@ E.get_release = function(){
         distro_release = {};
     if (!distro_release)
     {
-	var info = cli.exec_get_lines(['lsb_release', '-i', '-r', '-c', '-s']);
+	var info = exec.get_lines(['lsb_release', '-i', '-r', '-c', '-s']);
 	distro_release = {
             id: info[0].toLowerCase(),
             version: info[1],
@@ -105,7 +106,7 @@ E.is_release = function(releases){
 };
 var swapfile = '/tmp/zapt.swap';
 E.swapon = function(){
-    if (!file.is_file(swapfile) || file.size(swapfile)<512*1024*1024)
+    if (!file.is_file(swapfile) || file.size(swapfile)<512*MB)
     {
 	cli.exec_rt_e('rm -f '+swapfile);
 	// XXX sergey: we cannot use it anyway, it disabled by hoster
@@ -118,7 +119,7 @@ E.swapon = function(){
 };
 E.swapoff = function(){ cli.exec_rt('swapoff '+swapfile); };
 E.check_space = function(req){
-    return +cli.exec_get_line('df --output=avail -k / | grep -iv avail')>req;
+    return +exec.get_line('df --output=avail -k / | grep -iv avail')>req;
 };
 
 function cpu_diff(prev, curr){
@@ -136,9 +137,7 @@ function cpu_diff(prev, curr){
 function cpus_diff(prev, curr){
     var diff = [];
     for (var i = 0; i<curr.length; i++)
-    {
 	diff.push(cpu_diff(prev[i], curr[i]));
-    }
     diff.all = cpu_diff(prev.all, curr.all);
     return diff;
 }
@@ -147,7 +146,7 @@ function cpus_diff(prev, curr){
 E.cpus = function(){
     var ll;
     if (file.is_win)
-        ll = cli.exec_get_lines('cat /proc/stat');
+        ll = exec.get_lines('cat /proc/stat');
     else
         ll = file.read_lines_e('/proc/stat');
     var cpus = [];
@@ -301,31 +300,25 @@ E.TCP = { // net/tcp_states.h
     10: 'LISTEN',
     11: 'CLOSING',
 };
-E.sockets_count = function(proto){
-    // XXX: read_lines_e will fail on high socket count
-    var conns = file.read_lines_e('/proc/net/'+proto);
-    var i, v = {total: 0, lo: 0, ext: 0, err: 0};
-    for (i in E.TCP)
-	v[E.TCP[i]] = 0;
-    for (i=1; i<conns.length; i++)
-    {
-	var conn = conns[i], start;
-	if (!conn)
-	    continue;
-	if ((start = conn.indexOf(':'))==-1)
-	{
-	    v.err++;
-	    continue;
-	}
-	v.total++;
-	if (conn.substr(start+2, 8)=='0100007F')
-	    v.lo++;
-	else
-	    v.ext++;
-	var state = E.TCP[+('0x'+conn.substr(start+30, 2))];
-	if (state)
-	    v[state]++;
-    }
+E.sockets_count = proto=>{
+    let line_idx = -1, v = {total: 0, lo: 0, ext: 0, err: 0};
+    zutil.forEach(E.TCP, id=>v[id] = 0);
+    file.read_line_cb_e('/proc/net/'+proto, conn=>{
+        line_idx++;
+        if (!conn || !line_idx)
+            return;
+        let start;
+        if ((start = conn.indexOf(':'))==-1)
+            return void(v.err++);
+        v.total++;
+        if (conn.substr(start+2, 8)=='0100007F')
+            v.lo++;
+        else
+            v.ext++;
+        let state = E.TCP[+('0x'+conn.substr(start+30, 2))];
+        if (state)
+            v[state]++;
+    });
     return v;
 };
 
@@ -345,7 +338,7 @@ E.vmstat = function(){
 E.disk_page_io = function(){
     var vmstat = E.vmstat();
     // pgpgin/pgpgout are reported in KB
-    return {read: vmstat.pgpgin*1024, write: vmstat.pgpgout*1024};
+    return {read: vmstat.pgpgin*KB, write: vmstat.pgpgout*KB};
 };
 
 E.diskstats_prev = {};

@@ -1,10 +1,10 @@
 // LICENSE_CODE ZON ISC
 'use strict'; /*jslint browser:true*/
-define(['jquery', '/util/url.js', 'jquery_cookie'],
-    function($, zurl){
+define(['jquery', '/util/url.js', 'cookie'],
+    function($, zurl, cookie){
 var E = {};
 
-E.get = function(){ return $.cookie('XSRF-TOKEN'); };
+E.get = function(){ return cookie.get('XSRF-TOKEN'); };
 
 E.add = function(form){
     $(form).append($('<input type="hidden" name="csrf_token">')

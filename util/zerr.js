@@ -3,39 +3,30 @@
 (function(){
 var define, process;
 var is_node = typeof module=='object' && module.exports && module.children;
-var is_node_ff = typeof module=='object' && module.exports;
 var is_ff_addon = typeof module=='object' && module.uri
     && !module.uri.indexOf('resource://');
-if (!is_node_ff)
+if (!is_node && !is_ff_addon)
 {
     define = self.define;
     process = {env: {}};
 }
-else if (is_ff_addon)
-{
-    // XXX romank: tmp hack, find a better way to remove jquery
-    define = function(deps, fn){
-        deps.pop();
-        return require('./require_node.js').define(module, '../')(deps, fn);
-    };
-    process = {env: {}};
-}
 else
 {
-    // XXX romank: tmp hack, find a better way to remove jquery
-    define = function(deps, fn){
-        deps.pop();
-        return require('./require_node.js').define(module, '../')(deps, fn);
-    };
-    process = global.process||require('_process');
-    require('./config.js');
-    var cluster = require('cluster');
-    var fs = require('fs');
-    var version = require('./version.js').version;
+    define = require('./require_node.js').define(module, '../');
+    if (is_ff_addon)
+        process = {env: {}};
+    else if (is_node)
+    {
+        process = global.process||require('_process');
+        require('./config.js');
+        var cluster = require('cluster');
+        var fs = require('fs');
+        var version = require('./version.js').version;
+    }
 }
 define(['/util/array.js', '/util/date.js', '/util/util.js',
-    '/util/sprintf.js', '/util/rate_limit.js', '/util/escape.js', 'jquery'],
-    function(array, date, zutil, sprintf, rate_limit, zescape, $){
+    '/util/sprintf.js', '/util/rate_limit.js', '/util/escape.js'],
+    function(array, date, zutil, sprintf, rate_limit, zescape){
 var E, _zerr;
 var env = process.env;
 var zerr = function(msg){ _zerr(L.ERR, arguments); };
@@ -65,7 +56,7 @@ for (var k in L)
 
 E.assert = function(exp, msg){
     if (!exp)
-	zerr.crit(msg);
+        zerr.crit(msg);
 };
 
 E.json = function(o, replacer, space){
@@ -83,13 +74,37 @@ E.log_tail = function(size){ return E.log.join('\n').substr(-(size||4096)); };
 
 /* perr is a stub overridden by upper layers */
 E.perr = function(id, info, opt){
-    E.zerr('perr '+id+' '+JSON.stringify(info));
+    E.zerr('perr '+id+' '+E.json(info));
     if (perr_pending && perr_pending.length<100)
-	perr_pending.push(Array.from(arguments));
+        perr_pending.push(Array.from(arguments));
 };
 var perr_orig = E.perr;
+function wrap_perr(perr_fn){
+    var send = perr_fn, pre_send;
+    if (typeof perr_fn!='function')
+    {
+        send = perr_fn.send;
+        pre_send = perr_fn.pre_send;
+    }
+    return function(id, info, opt){
+        opt = opt||{};
+        var ms = (opt.rate_limit && opt.rate_limit.ms)||date.ms.HOUR;
+        var count = (opt.rate_limit && opt.rate_limit.count)||10;
+        var rl_hash = perr_orig.rl_hash = perr_orig.rl_hash||{};
+        var rl = rl_hash[id] = rl_hash[id]||{};
+        if (pre_send)
+            pre_send(id, info, opt);
+        if (opt.rate_limit===false || rate_limit(rl, ms, count))
+            return send(id, info, opt);
+        if (info && typeof info!='string')
+            info = zerr.json(info);
+        zerr('perr %s %s rate too high %s %d %d', id, info, zerr.json(rl), ms,
+            count);
+        // XXX mikhail: add dropped perrs reporting
+    };
+}
 E.perr_install = function(install_fn){
-    E.perr = install_fn(perr_orig, perr_pending||[]);
+    E.perr = wrap_perr(install_fn(perr_orig, perr_pending||[]));
     perr_pending = null;
 };
 
@@ -105,6 +120,7 @@ E.e2s = function(err){
 };
 
 E.on_exception = undefined;
+var in_exception;
 E.set_exception_handler = function(prefix, err_func){
     E.on_exception = function(err){
         if (!(err instanceof TypeError || err instanceof ReferenceError) ||
@@ -112,10 +128,14 @@ E.set_exception_handler = function(prefix, err_func){
         {
             return;
         }
+        if (in_exception)
+            return;
+        in_exception = 1;
         err.sent_perr = true;
         // XXX amir: better not to get a prefix arg, it can be added by the
         // err_func
         err_func((prefix ? prefix+'_' : '')+'etask_typeerror', null, err);
+        in_exception = 0;
     };
 };
 
@@ -138,10 +158,10 @@ E.set_level = function(level){
     var prev = 'L'+LINV[E.level];
     level = level||env.ZERR;
     if (!level)
-	return prev;
+        return prev;
     var val = L[level] || L[level.replace(/^L/, '')];
     if (val!==undefined)
-	E.level = val;
+        E.level = val;
     return prev;
 };
 
@@ -193,7 +213,7 @@ E.set_logger = function(logger){
 
 _zerr = function(level, args){
     if (level>E.level)
-	return;
+        return;
     __zerr(level, args);
 };
 E._zerr = _zerr;
@@ -202,41 +222,38 @@ E.zexit = function(args){
     var stack, zexit_args = arguments;
     if (err_has_stack(args))
     {
-	stack = args.stack;
-	__zerr(L.CRIT, [E.e2s(args)]);
+        stack = args.stack;
+        __zerr(L.CRIT, [E.e2s(args)]);
     }
     else
     {
-	var e = new Error();
-	stack = e.stack;
-	__zerr(L.CRIT, arguments);
-	console.error(stack);
+        var e = new Error();
+        stack = e.stack;
+        __zerr(L.CRIT, arguments);
+        console.error(stack);
     }
     E.flush();
     if (zutil.is_mocha())
     {
-	/*jslint -W087*/
-	debugger;
-	process.exit(1);
+        /*jslint -W087*/
+        debugger;
+        process.exit(1);
     }
     var zcounter_file = require('./zcounter_file.js');
     zcounter_file.inc('svc_zexit');
     args = zerr_format(arguments);
     write_zexit_log({id: 'server_zexit', info: ''+args, ts: date.to_sql(),
-        backtrace: stack, version: version, cid: server_cid});
+        backtrace: stack, version: version});
     E.flush();
     debugger;
     process.exit(1);
 };
 
-var server_cid = 0;
-E.set_server_cid = function(cid){ server_cid = cid; };
-
 var write_zexit_log = function(json){
     try {
         var file = require('./file.js');
         file.write_e(E.ZEXIT_LOG_DIR+'/'+date.to_log_file()+'_zexit_'+
-            process.pid+'.log', JSON.stringify(json), {mkdirp: 1});
+            process.pid+'.log', E.json(json), {mkdirp: 1});
     } catch(e){ E.zerr(E.e2s(e)); }
 };
 }
@@ -259,72 +276,64 @@ var console_method = function(l){
 _zerr = function(l, args){
     var s;
     try {
-	var fmt = ''+args[0];
-	var fmt_args = Array.prototype.slice.call(args, 1);
-	/* XXX arik/bahaa HACK: use sprintf (note, console % options are
-	 * differnt than sprintf % options) */
-	s = (fmt+(fmt_args.length ? ' '+E.json(fmt_args) : ''))
-	.substr(0, 1024);
-	var prefix = date.to_sql_ms()+' '+L_STR[l]+': ';
-	E.log.push(prefix+s);
-	if (E.is(l))
-	{
+        var fmt = ''+args[0];
+        var fmt_args = Array.prototype.slice.call(args, 1);
+        /* XXX arik/bahaa HACK: use sprintf (note, console % options are
+         * differnt than sprintf % options) */
+        s = (fmt+(fmt_args.length ? ' '+E.json(fmt_args) : ''))
+        .substr(0, 1024);
+        var prefix = date.to_sql_ms()+' '+L_STR[l]+': ';
+        E.log.push(prefix+s);
+        if (E.is(l))
+        {
             Function.prototype.apply.bind(console[console_method(l)],
                 console)([prefix+fmt].concat(fmt_args));
-	}
-	if (E.log.length>E.log.max_size)
-	    E.log.splice(0, E.log.length - E.log.max_size/2);
+        }
+        if (E.log.length>E.log.max_size)
+            E.log.splice(0, E.log.length - E.log.max_size/2);
     } catch(err){
-	try {
-	    /* XXX arik: console may fail (or be null) during loading of new
-	     * version */
-	    console.error('ERROR in zerr '+(err.stack||err)+' '+
-		E.json(arguments));
-	} catch(_err){}
+        try { console.error('ERROR in zerr '+(err.stack||err), arguments); }
+        catch(e){}
     }
     if (l<=L.CRIT)
-	throw new Error(s);
+        throw new Error(s);
 };
 E._zerr = _zerr;
 
+var post = function(url, data){
+    var use_xdr = typeof XDomainRequest=='function' &&
+        !('withCredentials' in XMLHttpRequest.prototype);
+    var req = use_xdr ? new XDomainRequest() : new XMLHttpRequest();
+    req.open('POST', url);
+    if (req.setRequestHeader)
+    {
+        req.setRequestHeader('Content-Type',
+            'application/x-www-form-urlencoded; charset=UTF-8');
+    }
+    req.send(zescape.qs(data));
+};
 var perr_transport = function(id, info, opt){
     opt = zutil.clone(opt||{});
     var qs = opt.qs||{}, data = opt.data||{};
-    var ms = (opt.rate_limit && opt.rate_limit.ms)||date.ms.HOUR;
-    var count = (opt.rate_limit && opt.rate_limit.count)||10;
-    var rl_hash = perr.rl_hash = perr.rl_hash||{};
-    var rl = rl_hash[id] = rl_hash[id]||{};
     data.is_json = 1;
     if (info && typeof info!='string')
-	info = zerr.json(info);
+        info = zerr.json(info);
     if (opt.err && !info)
-	info = ''+(opt.err.message||zerr.json(opt.err));
+        info = ''+(opt.err.message||zerr.json(opt.err));
     data.info = info;
     qs.id = id;
     if (!opt.no_zerr)
     {
         zerr._zerr(opt.level, ['perr '+id+(info ? ' info: '+info : '')+
-	    (opt.bt ? '\n'+opt.bt : '')]);
+            (opt.bt ? '\n'+opt.bt : '')]);
     }
-    if (rate_limit(rl, ms, count))
-    {
-	return $.ajax(zescape.uri(E.conf.url_perr+'/perr', qs), {
-	    type: 'POST', data: data, dataType: 'json'});
-    }
-    if (id=='be_perr_rate_limit')
-	return;
-    zerr('perr %s %s rate too high %s %d %d', id, info, zerr.json(rl),
-        ms, count);
-    opt.rate_limit = {ms: date.ms.HOUR, count: 1};
-    // Don't include 'info' in be_perr_rate_limit because it makes people
-    // confuse it with the original perr
-    return E.perr('be_perr_rate_limit', {id: id}, opt);
+    return post(zescape.uri(E.conf.url_perr+'/perr', qs), data);
 };
 
 var perr = function(perr_orig, pending){
     while (pending.length)
-	perr_transport.apply(null, pending.shift());
-    // set the zerr.perr stub to send to the clog serve
+        perr_transport.apply(null, pending.shift());
+    // set the zerr.perr stub to send to the clog server
     return perr_transport;
 };
 E.perr_install(perr);

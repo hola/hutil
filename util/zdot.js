@@ -92,7 +92,7 @@ E.template = function(tmpl, c){
     var _html_escape = c.html ? 'html_escape' : '';
     var _script_escape = c.html ? 'script_escape' : '';
     a.push({stmt:
-	'var out = "", tmp, def, helpers;\n'
+	'\'use strict\'; var out = "", tmp, def, helpers, g;\n'
 	+'if ('+it+' && '+it+'.helpers)\n'
         +'{ helpers = '+it+'.helpers; g = helpers; }\n'
 	+'if ('+it+' && '+it+'.def)\n'

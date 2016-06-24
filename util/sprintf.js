@@ -11,15 +11,14 @@ define([], function(){
 var E = sprintf;
 E.sprintf = sprintf;
 function sprintf(fmt /* args... */){
-    var _fmt = ':'+fmt; // protect against __proto__
-    if (!E.cache[_fmt])
+    if (!Object.prototype.hasOwnProperty.call(E.cache, fmt))
     {
-	E.cache[_fmt] = E.parse(fmt);
+	E.cache[fmt] = E.parse(fmt);
 	E.cache_n++;
 	if (E.cache_cb)
 	    E.cache_cb(fmt);
     }
-    return E.cache[_fmt](arguments);
+    return E.cache[fmt](arguments);
 }
 E.cache = {};
 E.cache_n = 0;

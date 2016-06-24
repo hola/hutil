@@ -86,4 +86,6 @@ E.align = function(){
         lines = array.sed(lines, new RegExp('^ {'+spaces+'}'), '');
     return lines.join('\n');
 };
+// merge lines
+E.nl2sp = function(){ return E.es6_str(arguments).replace(/\n\s*/g, ' '); };
 return E; }); }());

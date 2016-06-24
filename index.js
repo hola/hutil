@@ -9,7 +9,7 @@ else
     define = require('./util/require_node.js').define(module, '../');
 var modules = ['array', 'attrib', 'ccounter_client', 'conv', 'country', 'date',
     'es6_shim', 'escape', 'etask', 'file', 'lang', 'list', 'match', 'rand',
-    'rate_limit', 'sprintf', 'string', 'typedarray_shim', 'url', 'util',
+    'rate_limit', 'sprintf', 'string', 'url', 'util',
     'version', 'version_util', 'zdot', 'zerr'];
 define(modules.map(function(name){ return '/util/'+name+'.js'; } ), function(){
 var args = arguments;

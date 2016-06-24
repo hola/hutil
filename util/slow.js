@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, es6:false*/
+'use strict'; /*jslint node:true*/
 require('./config.js');
 var zutil = require('./util.js');
 var zerr = require('./zerr.js');

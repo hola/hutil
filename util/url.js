@@ -182,12 +182,12 @@ E.qs_parse = function(q, bin){
     } : function(val){
         return decodeURIComponent(val.replace(/\+/g, ' '));
     };
-    for (var i = 0; i < len; ++i)
+    for (var i = 0; i<len; ++i)
     {
 	var x = q[i];
 	var idx = x.indexOf('=');
-	var kstr = idx >= 0 ? x.substr(0, idx) : x;
-	var vstr = idx >= 0 ? x.substr(idx + 1): '';
+	var kstr = idx>=0 ? x.substr(0, idx) : x;
+	var vstr = idx>=0 ? x.substr(idx + 1): '';
         var k = unescape_val(kstr);
         var v = unescape_val(vstr);
 	if (obj[k]===undefined)
@@ -270,6 +270,18 @@ E.root_url_cmp = function(a, b){
     try { re = new RegExp(re); }
     catch(e){ return false; }
     return re.test(s);
+};
+
+E.add_params = function(url, params){
+    var hash_pos = url.indexOf('#'), href = '', fragment = '';
+    if (hash_pos==-1)
+        href = url;
+    else
+    {
+        href = url.substr(0, hash_pos);
+        fragment = url.substr(hash_pos);
+    }
+    return href+(href.includes('?') ? '&' : '?')+params+fragment;
 };
 
 return E; }); }());

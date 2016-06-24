@@ -16,13 +16,12 @@ E.events = new events.EventEmitter();
 E.json = function(opt){ return ajax(assign({}, opt, {json: 1})); };
 E.abort = function(ajax){ ajax.egoto('abort'); };
 // XXX arik: need test
-// XXX mikhail: should GET be the default method?
 function ajax(opt){
     var timeout = opt.timeout||20*date.ms.SEC, slow = opt.slow||2*date.ms.SEC;
     var retry = opt.retry, data = opt.data, qs = zescape.qs(opt.qs);
     var url = zescape.uri(opt.url, qs), perr = opt.perr;
     // opt.type is deprecated
-    var method = opt.method||opt.type||'POST';
+    var method = opt.method||opt.type||'GET';
     var data_type = opt.json ? 'json' : 'text';
     var t0 = Date.now();
     var xhr;
