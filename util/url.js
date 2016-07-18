@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, browser:true*/
+'use strict'; /*zlint node, br*/
 (function(){
 var define, node_url;
 var is_node = typeof module=='object' && module.exports && module.children;
@@ -52,15 +52,15 @@ E.get_host_gently = function(url){
 };
 
 E.is_ip = function(host){
-    return !!host.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/); };
+    return !!host.match(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/);
+};
 
 E.is_ip_subnet = function(host){
     return !!host.match(/((\b|\.)(0|1|2(?!5(?=6|7|8|9)|6|7|8|9))?\d{1,2}){4}(-((\b|\.)(0|1|2(?!5(?=6|7|8|9)|6|7|8|9))?\d{1,2}){4}|\/((0|1|2|3(?=1|2))\d|\d))\b/);
 };
 
 E.is_ip_port = function(host){
-    return !!host.match(
-	/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(:[0-9]{1,5})?$/);
+    return !!host.match(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(:[0-9]{1,5})?$/);
 };
 
 /* basic url validation to prevent script injection like 'javascript:....' */
@@ -187,7 +187,7 @@ E.qs_parse = function(q, bin){
 	var x = q[i];
 	var idx = x.indexOf('=');
 	var kstr = idx>=0 ? x.substr(0, idx) : x;
-	var vstr = idx>=0 ? x.substr(idx + 1): '';
+	var vstr = idx>=0 ? x.substr(idx + 1) : '';
         var k = unescape_val(kstr);
         var v = unescape_val(vstr);
 	if (obj[k]===undefined)

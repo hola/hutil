@@ -21,8 +21,8 @@ E.opt = {};
 E.L = {
     require: function(name, lib){
         this.__defineGetter__(name, function(){
-           delete this[name];
-           return this[name] = require(lib);
+            delete this[name];
+            return this[name] = require(lib);
         });
     }
 };
@@ -157,7 +157,13 @@ E.exec_rt_e = function(cmd, opt){
         throw new Error("exec_rt_e('"+cmd+"') exits with code "+ret);
 };
 E.run_from_tree = function(filename, script, opt){
-    var exec_opt = process.argv.slice(2);
+    let exec_opt = process.argv.slice(2);
+    let args = jtools.split_debug_flags(opt);
+    if (args.node_args.length)
+    {
+        opt.node_args = args.node_args;
+        exec_opt = args.args;
+    }
     return jtools.exec_in_zon_tree(filename, script, exec_opt, opt);
 };
 
@@ -227,13 +233,15 @@ function exit_with_code(opt, exit_code){
 
 E.process_exit = (promise, opt)=>etask(function*process_main(){
     opt = opt||{};
+    let ret;
     try {
-        yield promise;
+        ret = yield promise;
     } catch(e){ ef(e);
         console.error(opt.skip_stack ? ''+e : (e.stack||e));
-        exit_with_code(opt, 1);
+        return exit_with_code(opt, 1);
     }
-    exit_with_code(opt, 0);
+    // XXX vladimir: make use_retval default
+    exit_with_code(opt, opt.use_retval ? ret : 0);
 });
 
 // get input from user that works also in cygwin

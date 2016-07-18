@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint browser:true*/
+'use strict'; /*zlint br*/
 define(['cookie'], function(cookie){
 var E = {};
 var storage;

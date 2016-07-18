@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true*/
+'use strict'; /*zlint node*/
 require('./config.js');
 const sql_string = require('mysql/lib/protocol/SqlString.js');
 const etask = require('./etask.js');

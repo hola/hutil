@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, browser:true*/
+'use strict'; /*jslint node:true, browser:true*//*global Map*/
 (function(){
 var define, crypto, assert, zerr, vm;
 var is_node = typeof module=='object' && module.exports && module.children;
@@ -34,7 +34,20 @@ else
 define(['/util/util.js'], function(zutil){
 var E = {};
 
-E.cache_str_fn = function(fn){
+var has_map = typeof Map=='function' && Map.prototype.get && Map.prototype.set;
+has_map = 0; // XXX alexey: unit-test and remove
+E.cache_str_map_fn = function(fn){
+    var cache = new Map();
+    return function(s){
+        s = ''+s;
+        var v = cache.get(s);
+        if (v!==undefined || cache.has(s))
+            return v;
+        cache.set(s, v = fn(s));
+        return v;
+    };
+};
+E.cache_str_obj_fn = function(fn){
     var cache = {};
     return function(s){
         if (s in cache)
@@ -42,6 +55,7 @@ E.cache_str_fn = function(fn){
         return cache[s] = fn(s);
     };
 };
+E.cache_str_fn = has_map ? E.cache_str_map_fn : E.cache_str_obj_fn;
 
 E.cache_str_fn2 = function(fn){
     var cache = {};
@@ -336,6 +350,15 @@ E.bin2hex = function(arr){
         s += (v.length<2 ? '0' : '')+v+' ';
     }
     return s.trim();
+};
+
+E.tab2sp = function(line){
+     var added = 0;
+     return line.replace(/\t/g, function(m, offset, str){
+         var insert = 8-(added+offset)%8;
+         added += insert-1;
+         return ' '.repeat(insert);
+     });
 };
 
 return E; }); }());

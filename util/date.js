@@ -486,9 +486,9 @@ E.strftime = function(fmt, d, opt){
 	    var sign = tz[0]=='-' ? -1 : 1;
 	    var hours = parseInt(tz.slice(1, 3), 10);
 	    var mins = parseInt(tz.slice(3, 5), 10);
-	    tz = sign*(60*hours)+mins;
+	    tz = sign*(60*hours+mins);
 	}
-	else if (typeof tz=='number')
+        if (typeof tz=='number')
 	    d = new Date(+d+tz*60000);
     }
     var l = utc ? utc_local.utc : utc_local.local;

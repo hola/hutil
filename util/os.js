@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true*/
+'use strict'; /*zlint node*/
 require('./config.js');
 const fs = require('fs');
 const string = require('./string.js');

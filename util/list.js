@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true*/
+'use strict'; /*zlint node*/
 require('./config.js');
 // JS implementation of list.h:__LIST_XXX API
 var E = exports;

@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, browser:true*/
+'use strict'; /*zlint node, br*/
 (function(){
 var define;
 var is_node_ff = typeof module=='object' && module.exports;
@@ -88,4 +88,10 @@ E.align = function(){
 };
 // merge lines
 E.nl2sp = function(){ return E.es6_str(arguments).replace(/\n\s*/g, ' '); };
+
+// V8 often keeps large strings in memory when only a short substring is
+// referenced, see https://bugs.chromium.org/p/v8/issues/detail?id=2869
+// This function forces V8 to make a copy and release the parent string.
+E.detach = function(s){ return (' '+s).slice(1); };
+
 return E; }); }());

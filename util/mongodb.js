@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true*/
+'use strict'; /*zlint node*/
 require('./config.js');
 const _mongodb = require('mongodb');
 const _ = require('underscore');
@@ -393,7 +393,7 @@ E.close = zmongo=>etask(function*mongo_close(){
 E.connect = (conn, db, collection)=>etask(function*mongo_connect(){
     let opt = assign({host: 'localhost', port: 27017},
 	conn instanceof Object ? conn : cookie.parse(conn||''));
-    let can_reuse = +env.MONGO_REUSE_CONNS;
+    let can_reuse = +opt.reuse||+env.MONGO_REUSE_CONNS;
     let url, ret = {opt: opt}, _db, _collection;
     // XXX vladimir: deprecate and remove db param, it is overridden by opt
     db = opt.db||db;

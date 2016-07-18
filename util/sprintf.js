@@ -1,5 +1,5 @@
 // LICENSE_CODE ZON ISC
-'use strict'; /*jslint node:true, browser:true*/
+'use strict'; /*zlint node, br*/
 (function(){
 var define;
 var is_node_ff = typeof module=='object' && module.exports;
@@ -10,14 +10,14 @@ else
 define([], function(){
 var E = sprintf;
 E.sprintf = sprintf;
+var has = Object.prototype.hasOwnProperty;
 function sprintf(fmt /* args... */){
-    if (!Object.prototype.hasOwnProperty.call(E.cache, fmt))
-    {
-	E.cache[fmt] = E.parse(fmt);
-	E.cache_n++;
-	if (E.cache_cb)
-	    E.cache_cb(fmt);
-    }
+    if (has.call(E.cache, fmt))
+        return E.cache[fmt](arguments);
+    E.cache[fmt] = E.parse(fmt);
+    E.cache_n++;
+    if (E.cache_cb)
+        E.cache_cb(fmt);
     return E.cache[fmt](arguments);
 }
 E.cache = {};

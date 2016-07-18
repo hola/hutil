@@ -109,7 +109,8 @@ function Etask(opt, states){
             assert(0, 'invalid state type');
         t = this._get_func_type(pstate);
         var state = {f: pstate, label: t.label, try_catch: t.try_catch,
-            catch: t.catch, ensure: t.ensure, cancel: t.cancel, sig: undefined};
+            catch: t.catch, ensure: t.ensure, cancel: t.cancel,
+            sig: undefined};
         if (i==0 && opt.state0_args)
         {
             state.f = state.f.bind.apply(state.f,
@@ -509,12 +510,13 @@ E.prototype.set_state = function(name){
     return this.next_state = state;
 };
 
-E.prototype.egoto_fn = function(name){ return this.egoto.bind(this, name); };
-E.prototype.egoto = function(name, promise){
+E.prototype.egoto_fn = E.prototype.goto_fn = function(name){
+    return this.goto.bind(this, name); };
+E.prototype.egoto = E.prototype.goto = function(name, promise){
     this.set_state(name);
     var state = this.states[this.next_state];
     assert(!state.sig, 'goto to sig');
-    return this.econtinue(promise);
+    return this.continue(promise);
 };
 
 E.prototype.eloop = function(promise){
@@ -591,9 +593,10 @@ E.prototype._got_retval = function(wait_retval, res){
     wait_retval.completed = true;
     this._next_run(E._res2rv(res));
 };
-E.prototype.econtinue_fn = function(){ return this.econtinue.bind(this); };
+E.prototype.econtinue_fn = E.prototype.continue_fn = function(){
+    return this.continue.bind(this); };
 E.econtinue_depth = 0;
-E.prototype.econtinue = function(promise, sync){
+E.prototype.econtinue = E.prototype.continue = function(promise, sync){
     this.wait_retval = undefined;
     this._set_retval(promise);
     if (this.tm_completed)
@@ -629,7 +632,7 @@ E.prototype._ecancel = function(){
     if (this.cancel!==undefined)
         return this._call_safe(this.states[this.cancel].f);
     if (this.cancelable)
-        return this.ereturn();
+        return this.return();
 };
 
 E.prototype._ecancel_child = function(){
@@ -641,13 +644,14 @@ E.prototype._ecancel_child = function(){
         child[i]._ecancel();
 };
 
-E.prototype.ereturn_fn = function(){ return this.ereturn.bind(this); };
-E.prototype.ereturn = function(promise){
+E.prototype.ereturn_fn = E.prototype.return_fn = function(){
+    return this.return.bind(this); };
+E.prototype.ereturn = E.prototype.return = function(promise){
     if (this.tm_completed)
         return this._set_retval(promise);
     this.at_ereturn = true;
     this.next_state = undefined;
-    return this.econtinue(promise, true);
+    return this.continue(promise, true);
 };
 
 E.prototype.del_alarm = function(){
@@ -669,13 +673,13 @@ E.prototype.alarm_left = function(){
 
 E.prototype._eoperation_opt = function(opt){
     if (opt.egoto)
-        return {ret: this.egoto(opt.egoto, opt.ret)};
+        return {ret: this.goto(opt.egoto, opt.ret)};
     if (opt.ethrow)
-        return {ret: this.ethrow(opt.ethrow)};
+        return {ret: this.throw(opt.ethrow)};
     if (opt.ereturn!==undefined)
-        return {ret: this.ereturn(opt.ereturn)};
+        return {ret: this.return(opt.ereturn)};
     if (opt.econtinue!==undefined)
-        return {ret: this.econtinue(opt.econtinue)};
+        return {ret: this.continue(opt.econtinue)};
 };
 
 E.prototype.alarm = function(ms, cb){
@@ -707,21 +711,24 @@ function Etask_wait(et, op, timeout){
     this.child = this.at_child = this.cond = undefined;
     this.ready = this.completed = undefined;
 }
-Etask_wait.prototype.econtinue = function(res){
+Etask_wait.prototype.econtinue = Etask_wait.prototype.continue = function(res){
     if (this.completed)
         return;
     if (!this.et.wait_retval)
         return void(this.ready = {ret: res});
     if (this!==this.et.wait_retval)
         return;
-    this.et.econtinue(res);
+    this.et.continue(res);
 };
-Etask_wait.prototype.econtinue_fn = function(){
-    return this.econtinue.bind(this); };
-Etask_wait.prototype.ethrow = function(err){
-    return this.econtinue(E.err(err)); };
-Etask_wait.prototype.ethrow_fn = function(){
-    return this.ethrow.bind(this); };
+Etask_wait.prototype.econtinue_fn = Etask_wait.prototype.continue_fn =
+    function()
+{
+    return this.continue.bind(this);
+};
+Etask_wait.prototype.ethrow = Etask_wait.prototype.throw = function(err){
+    return this.continue(E.err(err)); };
+Etask_wait.prototype.ethrow_fn = Etask_wait.prototype.throw_fn = function(){
+    return this.throw.bind(this); };
 E.prototype.wait = function(timeout){
     return new Etask_wait(this, 'wait', timeout); };
 E.prototype.wait_child = function(child, timeout, cond){
@@ -737,9 +744,10 @@ E.prototype.wait_child = function(child, timeout, cond){
     return wait;
 };
 
-E.prototype.ethrow_fn = function(err){
-    return err ? this.ethrow.bind(this, err) : this.ethrow.bind(this); };
-E.prototype.ethrow = function(err){ return this.econtinue(E.err(err)); };
+E.prototype.ethrow_fn = E.prototype.throw_fn = function(err){
+    return err ? this.throw.bind(this, err) : this.throw.bind(this); };
+E.prototype.ethrow = E.prototype.throw = function(err){
+    return this.continue(E.err(err)); };
 
 E.prototype.get_name = function(flags){
     /* anon: Context.<anonymous> (/home/yoni/zon1/pkg/util/test.js:1740:7)
@@ -836,12 +844,12 @@ E.prototype.then = function(on_res, on_err){
         return etask('then_completed', [function(){ return on_done(); }]);
     var then_wait = etask('then_wait', [function(){ return this.wait(); }]);
     this.then_waiting.push(function(){
-        try { then_wait.econtinue(on_done()); }
-        catch(e){ then_wait.ethrow(e); }
+        try { then_wait.continue(on_done()); }
+        catch(e){ then_wait.throw(e); }
     });
     return then_wait;
 };
-E.prototype.otherwise = function(on_err){
+E.prototype.otherwise = E.prototype.catch = function(on_err){
     return this.then(null, on_err); };
 E.prototype.ensure = function(on_ensure){
     return this.then(function(res){ on_ensure(); return res; },
@@ -853,7 +861,7 @@ Etask_err.prototype.then = function(on_res, on_err){
         return !on_err ? E.err(_this.error) : on_err(_this.error);
     }]);
 };
-Etask_err.prototype.otherwise = function(on_err){
+Etask_err.prototype.otherwise = Etask_err.prototype.catch = function(on_err){
     return this.then(null, on_err); };
 Etask_err.prototype.ensure = function(on_ensure){
     this.then(null, function(){ on_ensure(); });
@@ -865,7 +873,7 @@ E.reject = function(err){ return etask([function(){ throw err; }]); };
 E.prototype.wait_ext = function(promise){
     if (!promise || typeof promise.then!='function')
         return promise;
-    promise.then(this.econtinue_fn(), this.ethrow_fn());
+    promise.then(this.continue_fn(), this.throw_fn());
     return this.wait();
 };
 
@@ -1074,7 +1082,7 @@ E.sleep = function(ms){
     ms = ms||0;
     return etask({name: 'sleep', cancel: true}, [function(){
         this.info.ms = ms+'ms';
-        timer = setTimeout(this.econtinue_fn(), ms);
+        timer = setTimeout(this.continue_fn(), ms);
         return this.wait();
     }, function ensure$(){
         clearTimeout(timer);
@@ -1082,10 +1090,10 @@ E.sleep = function(ms){
 };
 
 var ebreak_obj = {ebreak: 1};
-E.prototype.ebreak = function(ret){
-    return this.ethrow({ebreak: ebreak_obj, ret: ret});
+E.prototype.ebreak = E.prototype.break = function(ret){
+    return this.throw({ebreak: ebreak_obj, ret: ret});
 };
-E.efor = function(cond, inc, opt, states){
+E.efor = E.for = function(cond, inc, opt, states){
     if (Array.isArray(opt) || typeof opt=='function')
     {
         states = opt;
@@ -1099,26 +1107,26 @@ E.efor = function(cond, inc, opt, states){
         return !cond || cond.call(this);
     }, function try_catch$(res){
         if (!res)
-            return this.ereturn();
+            return this.return();
         return etask({name: 'efor_iter', cancel: true, init: opt.init},
             states||[]);
     }, function(){
         if (this.error)
         {
             if (this.error.ebreak===ebreak_obj)
-                return this.ereturn(this.error.ret);
-            return this.ethrow(this.error);
+                return this.return(this.error.ret);
+            return this.throw(this.error);
         }
         return inc && inc.call(this);
     }, function(){
-        return this.egoto('loop');
+        return this.goto('loop');
     }]);
 };
 E.efor_each = function(obj, states){
     var keys = Object.keys(obj);
     var iter = {obj: obj, keys: keys, i: 0, key: undefined, val: undefined};
     function init_iter(){ this.iter = iter; }
-    return E.efor(function(){
+    return E.for(function(){
             this.iter = this.iter||iter;
             iter.key = keys[iter.i];
             iter.val = obj[keys[iter.i]];
@@ -1128,7 +1136,8 @@ E.efor_each = function(obj, states){
         {init: init_iter, init_parent: init_iter},
         states);
 };
-E.ewhile = function(cond, states){ return E.efor(cond, null, states); };
+E.ewhile = E.while = function(cond, states){
+    return E.for(cond, null, states); };
 
 // all([opt, ]a_or_o)
 E.all = function(a_or_o, ao2){
@@ -1147,7 +1156,7 @@ E.all = function(a_or_o, ao2){
                 this.spawn(a[j]);
         }, function try_catch$loop(){
             if (i>=a.length)
-                return this.ereturn(a);
+                return this.return(a);
             this.info.at = 'at '+i+'/'+a.length;
             var _a = a[i];
             if (_a instanceof Etask)
@@ -1157,12 +1166,12 @@ E.all = function(a_or_o, ao2){
             if (this.error)
             {
                 if (!opt.allow_fail)
-                    return this.ethrow(this.error);
+                    return this.throw(this.error);
                 res = E.err(this.error);
             }
             a[i] = res;
             i++;
-            return this.egoto('loop');
+            return this.goto('loop');
         }]);
     }
     else if (a_or_o instanceof Object)
@@ -1174,7 +1183,7 @@ E.all = function(a_or_o, ao2){
                 this.spawn(a_or_o[keys[j]]);
         }, function try_catch$loop(){
             if (i>=keys.length)
-                return this.ereturn(o);
+                return this.return(o);
             var _i = keys[i], _a = a_or_o[_i];
             this.info.at = 'at '+_i+' '+i+'/'+keys.length;
             if (_a instanceof Etask)
@@ -1184,12 +1193,12 @@ E.all = function(a_or_o, ao2){
             if (this.error)
             {
                 if (!opt.allow_fail)
-                    return this.ethrow(this.error);
+                    return this.throw(this.error);
                 res = E.err(this.error);
             }
             o[keys[i]] = res;
             i++;
-            return this.egoto('loop');
+            return this.goto('loop');
         }]);
     }
     else
@@ -1205,7 +1214,7 @@ E.all_limit = function(limit, arr_iter, cb){
     return etask({name: 'all_limit', cancel: true}, [function(){
         var next;
         if (!(next = iter.call(this)))
-            return this.egoto('done');
+            return this.goto('done');
         this.spawn(next);
         this.eloop();
         if (this.child.length>=limit)
@@ -1266,7 +1275,7 @@ E._apply = function(opt, func, _this, args){
                 res = array.slice(arguments, nfn);
             else if (!nfn)
                 res = err;
-            et.econtinue(nfn ? E.err_res(err, res) : res);
+            et.continue(nfn ? E.err_res(err, res) : res);
         });
         ret_sync = func.apply(_this, args);
         if (Array.isArray(opt.ret_sync))
@@ -1308,7 +1317,7 @@ E.cb_apply = function(opt, func, _this, args){
 };
 
 E.prototype.econtinue_nfn = function(){
-    return function(err, res){ this.econtinue(E.err_res(err, res)); }
+    return function(err, res){ this.continue(E.err_res(err, res)); }
     .bind(this);
 };
 
@@ -1381,15 +1390,15 @@ E._generator = function(gen, ctor, opt){
     }, function try_catch$loop(rv){
         var res;
         try { res = rv.err ? gen.throw(rv.err) : gen.next(rv.ret); }
-        catch(e){ return this.ereturn(E.err(e)); }
+        catch(e){ return this.return(E.err(e)); }
         if (res.done)
         {
             done = true;
-            return this.ereturn(res.value);
+            return this.return(res.value);
         }
         return res.value;
     }, function(ret){
-        return this.egoto('loop', this.error ?
+        return this.goto('loop', this.error ?
             {ret: undefined, err: this.error} : {ret: ret, err: undefined});
     }, function ensure$(){
         // https://kangax.github.io/compat-table/es6/#test-generators_%GeneratorPrototype%.return
