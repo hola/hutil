@@ -113,14 +113,18 @@ E.find_all = (zmongo, selector, opt)=>etask(function*mongo_find_all(){
     opt = opt||{};
     mongo_slow(this, opt, 'find_all', zmongo, selector);
     zerr.debug('mongodb find_all. selector: %O', selector);
-    let opts = opt.hint ? {hint: opt.hint} : null, items;
-    let cursor = zmongo.collection.find(selector, opt.projection||{}, opts);
+    let cursor = zmongo.collection.find(selector);
+    if (opt.hint)
+        cursor.hint(opt.hint);
+    if (opt.projection)
+        cursor.project(opt.projection);
     if (opt.sort)
         cursor.sort(opt.sort);
     if (opt.limit)
         cursor.limit(opt.limit);
     if (opt.skip)
         cursor.skip(opt.skip);
+    let items;
     try { items = yield etask.nfn_apply(cursor, '.toArray', []); }
     catch(e){ ef(e); handle_error(zmongo, 'find.toArray', e, selector); }
     log_query('toArray', zmongo.name, selector, null, items, this);

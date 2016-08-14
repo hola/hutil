@@ -38,7 +38,7 @@ function sql_query_pool(_pool, query, args, opt, conn_query_fn){
 	if (this.error)
 	{
 	    zerr('ERROR pool getConnection query '+query+' err '+this.error);
-	    return this.ethrow(this.error);
+	    return this.throw(this.error);
 	}
 	sql = res;
 	slow_test = new slow.slow(get_slow_opt('sql_query', 'sql_pool_query'))
@@ -53,7 +53,7 @@ function sql_query_pool(_pool, query, args, opt, conn_query_fn){
 	    zerr('ERROR sql_query_pool '+query
 		+(args ? ' args '+JSON.stringify(args).slice(0, 128) : '')
 		+' err '+this.error);
-	    return this.ethrow(this.error);
+	    return this.throw(this.error);
 	}
 	return res;
     }, function ensure$(res){
@@ -205,7 +205,7 @@ E.sqlite_create = (sql, table, create)=>etask(function*(){
     if (!res.length)
         op = 'create';
     else if (res[0].sql.toUpperCase()==create.toUpperCase())
-        yield this.ereturn('noop');
+        yield this.return('noop');
     else
     {
         op = 'drop_create';

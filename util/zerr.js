@@ -74,10 +74,12 @@ E.log_tail = function(size){ return E.log.join('\n').substr(-(size||4096)); };
 
 /* perr is a stub overridden by upper layers */
 E.perr = function(id, info, opt){
-    E.zerr('perr '+id+' '+E.json(info));
+    E._zerr(!opt || opt.level===undefined ? L.ERR : opt.level,
+        ['perr '+id+' '+E.json(info)]);
     if (perr_pending && perr_pending.length<100)
         perr_pending.push(Array.from(arguments));
 };
+var perr_dropped = {};
 var perr_orig = E.perr;
 function wrap_perr(perr_fn){
     var send = perr_fn, pre_send;
@@ -95,12 +97,20 @@ function wrap_perr(perr_fn){
         if (pre_send)
             pre_send(id, info, opt);
         if (opt.rate_limit===false || rate_limit(rl, ms, count))
+        {
+            if (perr_dropped[id])
+            {
+                if (info && typeof info!='string')
+                    info.w = perr_dropped[id];
+                perr_dropped[id] = null;
+            }
             return send(id, info, opt);
+        }
+        perr_dropped[id] = (perr_dropped[id]||0)+1;
         if (info && typeof info!='string')
             info = zerr.json(info);
         zerr('perr %s %s rate too high %s %d %d', id, info, zerr.json(rl), ms,
             count);
-        // XXX mikhail: add dropped perrs reporting
     };
 }
 E.perr_install = function(install_fn){
@@ -240,7 +250,7 @@ E.zexit = function(args){
         process.exit(1);
     }
     var zcounter_file = require('./zcounter_file.js');
-    zcounter_file.inc('svc_zexit');
+    zcounter_file.inc('server_zexit');
     args = zerr_format(arguments);
     write_zexit_log({id: 'server_zexit', info: ''+args, ts: date.to_sql(),
         backtrace: stack, version: version});

@@ -50,7 +50,7 @@ E.leave = (mutex, id)=>{
     mutex.slow = slow.start(slow.slow_opt('mutex_holding',
 	()=>format_mutex_slow(e.__mutex_id__, 'holding')));
     mutex.waiting.shift();
-    e.econtinue(1);
+    e.continue(1);
 };
 
 E.used = (mutex, id)=>{

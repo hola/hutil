@@ -14,7 +14,7 @@ var E = ajax;
 var assign = Object.assign;
 E.events = new events.EventEmitter();
 E.json = function(opt){ return ajax(assign({}, opt, {json: 1})); };
-E.abort = function(ajax){ ajax.egoto('abort'); };
+E.abort = function(ajax){ ajax.goto('abort'); };
 // XXX arik: need test
 function ajax(opt){
     var timeout = opt.timeout||20*date.ms.SEC, slow = opt.slow||2*date.ms.SEC;
@@ -40,7 +40,7 @@ function ajax(opt){
             xhr.statusText+'\nresponseText: '+
             (xhr.responseText||'').substr(0, 200));
         if (retry)
-            return this.ereturn(ajax(assign({}, opt, {retry: retry-1})));
+            return this.return(ajax(assign({}, opt, {retry: retry-1})));
         if (xhr.statusText=='timeout')
             E.events.emit('timeout', this);
         if (opt.no_throw)
@@ -54,7 +54,7 @@ function ajax(opt){
             perr({id: 'be_ajax_slow', info: t+'ms '+url});
         if (E.do_op)
             E.do_op(data&&data.do_op);
-        return this.ereturn(data);
+        return this.return(data);
     }, function abort(){
         // reachable only via E.abort
         xhr.abort();

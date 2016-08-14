@@ -239,6 +239,7 @@ E.copy_e = (src, dst, opt)=>{
     dst = E.normalize(dst);
     return (E.is_dir(src) ? copy_dir : copy_file)(src, dst, opt);
 };
+E.rename_e = (src, dst)=>fs.renameSync(src, dst);
 E.readlink_e = src=>fs.readlinkSync(src);
 E.link_e = (src, dst, opt)=>{
     opt = opt||{};

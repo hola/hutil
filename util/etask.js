@@ -82,8 +82,8 @@ function Etask(opt, states){
     }
     // performance: set all fields to undefined
     this.cur_state = this.states = this._ensure = this.error =
-    this.at_ereturn = this.next_state = this.use_retval = this.running =
-    this.at_econtinue = this.cancel = this.wait_timer = this.retval =
+    this.at_return = this.next_state = this.use_retval = this.running =
+    this.at_continue = this.cancel = this.wait_timer = this.retval =
     this.run_state = this._stack = this.down = this.up = this.child =
     this.name = this._name = this.parent = this.cancelable =
     this.tm_create = this._alarm = this.tm_completed = this.parent_type =
@@ -199,8 +199,8 @@ E.prototype._call_err = function(e){
     E.ef(e);
     // XXX derry: add assert(0, 'etask err in signal: '+e);
 };
-E.prototype.emit_safe = function(event){
-    try { this.emit(event); }
+E.prototype.emit_safe = function(){
+    try { this.emit.apply(this, arguments); }
     catch(e){ this._call_err(e); }
 };
 E.prototype._call_safe = function(state_fn){
@@ -245,7 +245,7 @@ E.prototype._next = function(rv){
         return true;
     rv = rv||{ret: undefined, err: undefined};
     var states = this.states;
-    var state = this.at_ereturn ? states.length :
+    var state = this.at_return ? states.length :
         this.next_state!==undefined ? this.next_state :
         this.cur_state+1;
     this.retval = rv.ret;
@@ -392,7 +392,7 @@ E.prototype._run = function(){
         if (rv.ret instanceof Etask_wait)
         {
             var wait_completed = false, wait = rv.ret;
-            if (!this.at_econtinue && !wait.ready)
+            if (!this.at_continue && !wait.ready)
             {
                 this.wait_retval = wait;
                 if (wait.op=='wait_child')
@@ -403,11 +403,11 @@ E.prototype._run = function(){
                     return;
                 this.wait_retval = undefined;
             }
-            rv.ret = this.at_econtinue ? this.at_econtinue.ret :
+            rv.ret = this.at_continue ? this.at_continue.ret :
                 wait.ready && !wait.completed ? wait.ready.ret : undefined;
             wait.completed = true;
         }
-        this.at_econtinue = undefined;
+        this.at_continue = undefined;
         if (this._handle_rv(rv))
             return;
         if (this._next(rv))
@@ -474,8 +474,16 @@ E.prototype._get_func_type = function(func, on_fail){
 };
 
 E.prototype.spawn = function(child, replace){
-    if (!(child instanceof Etask))
+    if (!(child instanceof Etask) && child && typeof child.then=='function')
+    {
+        var promise = child;
+        child = etask([function(){ return promise; }]);
+    }
+    if (!(child instanceof Etask)) // promise already completed?
+    {
+        this.emit('child', child);
         return;
+    }
     if (!replace && child.parent)
         assert(0, 'child already has a parent\n'+child.parent.ps());
     child.spawn_parent(this);
@@ -510,16 +518,16 @@ E.prototype.set_state = function(name){
     return this.next_state = state;
 };
 
-E.prototype.egoto_fn = E.prototype.goto_fn = function(name){
+E.prototype.goto_fn = function(name){
     return this.goto.bind(this, name); };
-E.prototype.egoto = E.prototype.goto = function(name, promise){
+E.prototype.goto = function(name, promise){
     this.set_state(name);
     var state = this.states[this.next_state];
     assert(!state.sig, 'goto to sig');
     return this.continue(promise);
 };
 
-E.prototype.eloop = function(promise){
+E.prototype.loop = function(promise){
     this.next_state = this.cur_state;
     return promise;
 };
@@ -593,10 +601,10 @@ E.prototype._got_retval = function(wait_retval, res){
     wait_retval.completed = true;
     this._next_run(E._res2rv(res));
 };
-E.prototype.econtinue_fn = E.prototype.continue_fn = function(){
+E.prototype.continue_fn = function(){
     return this.continue.bind(this); };
-E.econtinue_depth = 0;
-E.prototype.econtinue = E.prototype.continue = function(promise, sync){
+E.continue_depth = 0;
+E.prototype.continue = function(promise, sync){
     this.wait_retval = undefined;
     this._set_retval(promise);
     if (this.tm_completed)
@@ -607,18 +615,18 @@ E.prototype.econtinue = E.prototype.continue = function(promise, sync){
     var rv = {ret: promise, err: undefined};
     if (this.running)
     {
-        this.at_econtinue = rv;
+        this.at_continue = rv;
         return promise;
     }
     if (this._handle_rv(rv))
         return rv.ret;
     var _this = this;
     if (E.is_final(promise) &&
-        (!E.econtinue_depth && !E.in_run.length || sync))
+        (!E.continue_depth && !E.in_run.length || sync))
     {
-        E.econtinue_depth++;
+        E.continue_depth++;
         this._next_run(rv);
-        E.econtinue_depth--;
+        E.continue_depth--;
     }
     else // avoid high stack depth
         E.nextTick(function(){ _this._next_run(rv); });
@@ -644,12 +652,12 @@ E.prototype._ecancel_child = function(){
         child[i]._ecancel();
 };
 
-E.prototype.ereturn_fn = E.prototype.return_fn = function(){
+E.prototype.return_fn = function(){
     return this.return.bind(this); };
-E.prototype.ereturn = E.prototype.return = function(promise){
+E.prototype.return = function(promise){
     if (this.tm_completed)
         return this._set_retval(promise);
-    this.at_ereturn = true;
+    this.at_return = true;
     this.next_state = undefined;
     return this.continue(promise, true);
 };
@@ -671,15 +679,15 @@ E.prototype.alarm_left = function(){
     return a.start-Date.now();
 };
 
-E.prototype._eoperation_opt = function(opt){
-    if (opt.egoto)
-        return {ret: this.goto(opt.egoto, opt.ret)};
-    if (opt.ethrow)
-        return {ret: this.throw(opt.ethrow)};
-    if (opt.ereturn!==undefined)
-        return {ret: this.return(opt.ereturn)};
-    if (opt.econtinue!==undefined)
-        return {ret: this.continue(opt.econtinue)};
+E.prototype._operation_opt = function(opt){
+    if (opt.goto)
+        return {ret: this.goto(opt.goto, opt.ret)};
+    if (opt.throw)
+        return {ret: this.throw(opt.throw)};
+    if (opt.return!==undefined)
+        return {ret: this.return(opt.return)};
+    if (opt.continue!==undefined)
+        return {ret: this.continue(opt.continue)};
 };
 
 E.prototype.alarm = function(ms, cb){
@@ -689,7 +697,7 @@ E.prototype.alarm = function(ms, cb){
         opt = cb;
         cb = function(){
             var v;
-            if (!(v = _this._eoperation_opt(opt)))
+            if (!(v = _this._operation_opt(opt)))
                 assert(0, 'invalid alarm cb opt');
             return v.ret;
         };
@@ -711,7 +719,7 @@ function Etask_wait(et, op, timeout){
     this.child = this.at_child = this.cond = undefined;
     this.ready = this.completed = undefined;
 }
-Etask_wait.prototype.econtinue = Etask_wait.prototype.continue = function(res){
+Etask_wait.prototype.continue = function(res){
     if (this.completed)
         return;
     if (!this.et.wait_retval)
@@ -720,14 +728,11 @@ Etask_wait.prototype.econtinue = Etask_wait.prototype.continue = function(res){
         return;
     this.et.continue(res);
 };
-Etask_wait.prototype.econtinue_fn = Etask_wait.prototype.continue_fn =
-    function()
-{
-    return this.continue.bind(this);
-};
-Etask_wait.prototype.ethrow = Etask_wait.prototype.throw = function(err){
+Etask_wait.prototype.continue_fn = function(){
+    return this.continue.bind(this); };
+Etask_wait.prototype.throw = function(err){
     return this.continue(E.err(err)); };
-Etask_wait.prototype.ethrow_fn = Etask_wait.prototype.throw_fn = function(){
+Etask_wait.prototype.throw_fn = function(){
     return this.throw.bind(this); };
 E.prototype.wait = function(timeout){
     return new Etask_wait(this, 'wait', timeout); };
@@ -744,9 +749,9 @@ E.prototype.wait_child = function(child, timeout, cond){
     return wait;
 };
 
-E.prototype.ethrow_fn = E.prototype.throw_fn = function(err){
+E.prototype.throw_fn = function(err){
     return err ? this.throw.bind(this, err) : this.throw.bind(this); };
-E.prototype.ethrow = E.prototype.throw = function(err){
+E.prototype.throw = function(err){
     return this.continue(E.err(err)); };
 
 E.prototype.get_name = function(flags){
@@ -831,8 +836,8 @@ E.is_final = function(v){
 };
 
 // promise compliant .then() implementation for Etask and Etask_err.
-// for unit-test comfort, also .otherwise() .ensure(), resolve() and reject()
-// are implemented.
+// for unit-test comfort, also .otherwise(), .catch(), .ensure(), resolve() and
+// reject() are implemented.
 E.prototype.then = function(on_res, on_err){
     var _this = this;
     function on_done(){
@@ -873,8 +878,9 @@ E.reject = function(err){ return etask([function(){ throw err; }]); };
 E.prototype.wait_ext = function(promise){
     if (!promise || typeof promise.then!='function')
         return promise;
-    promise.then(this.continue_fn(), this.throw_fn());
-    return this.wait();
+    var wait = this.wait();
+    promise.then(wait.continue_fn(), wait.throw_fn());
+    return wait;
 };
 
 E.prototype.longname = function(flags){
@@ -1070,11 +1076,11 @@ E.prototype._assert_parent = function(){
     }
 };
 
-E.prototype.ereturn_child = function(){
-    // copy array, since ereturn has side affects and can modify array
+E.prototype.return_child = function(){
+    // copy array, since return() has side affects and can modify array
     var child = Array.from(this.child);
     for (var i=0; i<child.length; i++)
-        child[i].ereturn();
+        child[i].return();
 };
 
 E.sleep = function(ms){
@@ -1090,10 +1096,10 @@ E.sleep = function(ms){
 };
 
 var ebreak_obj = {ebreak: 1};
-E.prototype.ebreak = E.prototype.break = function(ret){
+E.prototype.break = function(ret){
     return this.throw({ebreak: ebreak_obj, ret: ret});
 };
-E.efor = E.for = function(cond, inc, opt, states){
+E.for = function(cond, inc, opt, states){
     if (Array.isArray(opt) || typeof opt=='function')
     {
         states = opt;
@@ -1102,13 +1108,13 @@ E.efor = E.for = function(cond, inc, opt, states){
     if (typeof states=='function')
         states = [states];
     opt = opt||{};
-    return etask({name: 'efor', cancel: true, init: opt.init_parent},
+    return etask({name: 'for', cancel: true, init: opt.init_parent},
     [function loop(){
         return !cond || cond.call(this);
     }, function try_catch$(res){
         if (!res)
             return this.return();
-        return etask({name: 'efor_iter', cancel: true, init: opt.init},
+        return etask({name: 'for_iter', cancel: true, init: opt.init},
             states||[]);
     }, function(){
         if (this.error)
@@ -1122,7 +1128,7 @@ E.efor = E.for = function(cond, inc, opt, states){
         return this.goto('loop');
     }]);
 };
-E.efor_each = function(obj, states){
+E.for_each = function(obj, states){
     var keys = Object.keys(obj);
     var iter = {obj: obj, keys: keys, i: 0, key: undefined, val: undefined};
     function init_iter(){ this.iter = iter; }
@@ -1136,8 +1142,7 @@ E.efor_each = function(obj, states){
         {init: init_iter, init_parent: init_iter},
         states);
 };
-E.ewhile = E.while = function(cond, states){
-    return E.for(cond, null, states); };
+E.while = function(cond, states){ return E.for(cond, null, states); };
 
 // all([opt, ]a_or_o)
 E.all = function(a_or_o, ao2){
@@ -1216,7 +1221,7 @@ E.all_limit = function(limit, arr_iter, cb){
         if (!(next = iter.call(this)))
             return this.goto('done');
         this.spawn(next);
-        this.eloop();
+        this.loop();
         if (this.child.length>=limit)
             return this.wait_child('any');
     }, function done(){
@@ -1316,7 +1321,7 @@ E.cb_apply = function(opt, func, _this, args){
     return E._apply(opt, func, _this, args);
 };
 
-E.prototype.econtinue_nfn = function(){
+E.prototype.continue_nfn = function(){
     return function(err, res){ this.continue(E.err_res(err, res)); }
     .bind(this);
 };

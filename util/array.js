@@ -191,7 +191,7 @@ E.prototype_install = function(){
     for (var i in proto)
     {
         Object.defineProperty(Array.prototype, i,
-            {value: proto[i], configurable: true, enumberable: false,
+            {value: proto[i], configurable: true, enumerable: false,
             writable: true});
     }
 };

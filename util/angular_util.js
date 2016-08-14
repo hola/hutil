@@ -5,7 +5,9 @@ define(['angular_1_4_8', '/util/escape.js', '/util/date.js'],
 angular.module('angular_util', [])
 .filter('zdate', function(){
     return function(d, format, opt){
-        if (/^[+-]\d\d:?\d\d$/.test(opt))
+        if (opt=='local')
+            opt = {local: true};
+        else if (/^[+-]\d\d:?\d\d$/.test(opt))
             opt = {timezone: opt.replace(':', '')};
         return date.strftime(format||'%v', d, opt);
     };

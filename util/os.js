@@ -357,7 +357,8 @@ E.diskstats = function(){
 	    reads_merged: +n[4], reads_sector: +n[5], reads_ms: +n[6],
 	    writes: +n[7], writes_merged: +n[8], writes_sector: +n[9],
 	    writes_ms: +n[10], io_current: +n[11], io_ms: +n[12],
-	    io_weighted_ms: +n[13], await: 0, util: 0, ts: Date.now()};
+	    io_weighted_ms: +n[13], await: 0, util: 0, util_weighted: 0,
+            ts: Date.now()};
         cur.rw_ms = cur.reads_ms+cur.writes_ms;
         cur.rw_ios = cur.reads+cur.writes;
         let prev;
@@ -367,6 +368,8 @@ E.diskstats = function(){
         let d_ios = cur.rw_ios-prev.rw_ios;
         cur.await = d_ios ? (cur.rw_ms-prev.rw_ms)/d_ios : 0;
         cur.util = d_ts ? ((cur.io_ms-prev.io_ms)/d_ts)*100 : 0;
+        cur.util_weighted = d_ts
+            ? (cur.io_weighted_ms-prev.io_weighted_ms)/d_ts : 0;
     }
     E.diskstats_prev = ret;
     return ret;
@@ -376,7 +379,8 @@ E.disk_io_time = function(){
     var diskstats = E.diskstats();
     if (!diskstats)
 	return;
-    var io = {read: 0, write: 0, total: 0, max_await: 0, max_util: 0};
+    var io = {read: 0, write: 0, total: 0, max_await: 0, max_util: 0,
+        max_util_weighted: 0};
     for (var i in diskstats)
     {
 	io.read += diskstats[i].reads_ms;
@@ -384,6 +388,8 @@ E.disk_io_time = function(){
 	io.total += diskstats[i].io_ms;
         io.max_await = Math.max(io.max_await, diskstats[i].await);
         io.max_util = Math.max(io.max_util, diskstats[i].util);
+        io.max_util_weighted = Math.max(io.max_util_weighted,
+            diskstats[i].util_weighted);
     }
     return io;
 };

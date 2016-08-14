@@ -115,7 +115,7 @@ E.extend = function(obj){ // like _.extend
 };
 
 function is_object(obj){
-    return Object.prototype.toString.call(obj)=='[object Object]'; }
+    return obj && obj.constructor==Object; }
 
 E.extend_deep = function(obj){
     for (var i=1; i<arguments.length; i++)

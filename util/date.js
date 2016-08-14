@@ -54,27 +54,30 @@ E.dur_to_str = function(duration){
 
 E.monotonic = undefined;
 E.init = function(){
+    var adjust, last;
     if (typeof window=='object' && window.performance
         && window.performance.now)
     {
         // 10% slower than Date.now, but always monotonic
-        E.monotonic = window.performance.now.bind(window.performance);
+        adjust = Date.now()-window.performance.now();
+        E.monotonic = function(){ return window.performance.now()+adjust; };
     }
     else if (is_node && !global.mocha_running)
     {
         // brings libuv monotonic time since process start
         var timer = process.binding('timer_wrap').Timer;
-        E.monotonic = timer.now.bind(timer);
+        adjust = Date.now()-timer.now();
+        E.monotonic = function(){ return timer.now()+adjust; };
     }
     else
     {
-        var monotonic_last = 0, monotonic_adjust = 0;
+        last = adjust = 0;
         E.monotonic = function(){
-            var now = Date.now()+monotonic_adjust;
-            if (now>=monotonic_last)
-                return monotonic_last = now;
-            monotonic_adjust += monotonic_last-now;
-            return monotonic_last;
+            var now = Date.now()+adjust;
+            if (now>=last)
+                return last = now;
+            adjust += last-now;
+            return last;
         };
     }
 };
