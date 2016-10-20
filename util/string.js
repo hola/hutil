@@ -71,18 +71,19 @@ E.es6_str = function(args){
 
 // align paragraph to the left
 E.align = function(){
-    var str = E.es6_str(arguments);
-    var lines = str.split('\n');
-    if (lines[0]=='')
+    var str = E.es6_str(arguments), lines = str.split('\n');
+    if (!lines[0])
         lines.shift();
     var spaces = Infinity;
     for (var i=0; i<lines.length; i++)
     {
-        lines[i] = lines[i].trimRight();
-        var space = lines[i].search(/\S/);
-        spaces = Math.min(spaces, space>=0 ? space : Infinity);
+        var space = lines[i].match(/^\s*/)[0];
+        if (space.length==lines[i].length)
+            space = lines[i] = '';
+        else
+            spaces = Math.min(spaces, space.length);
     }
-    if (spaces>0)
+    if (spaces>0 && spaces!=Infinity)
         lines = array.sed(lines, new RegExp('^ {'+spaces+'}'), '');
     return lines.join('\n');
 };

@@ -2,7 +2,7 @@
 'use strict'; /*zlint node*/
 require('./config.js');
 const _mongodb = require('mongodb');
-const _ = require('underscore');
+const _ = require('lodash');
 const cookie = require('cookie');
 const zcounter = require('./zcounter.js');
 const etask = require('./etask.js');
@@ -66,7 +66,8 @@ function handle_error(zmongo, type, err, selector, update){
         err_fn = zerr;
     }
     if (zmongo.opt.known_err && err.message &&
-        err.message.includes(zmongo.opt.known_err))
+        err.message.includes(zmongo.opt.known_err)
+        || _.get(selector, 'opt.no_zexit'))
     {
         err_fn = zerr;
     }
@@ -83,8 +84,7 @@ function check_stub(zmongo){
     return true;
 }
 
-E.find_one = (zmongo, selector, sort, _opt)=>etask('mongo find_one',
-function*(){
+E.find_one = (zmongo, selector, sort, _opt)=>etask(function*mongodb_find_one(){
     if (check_stub(zmongo))
         return null;
     selector = selector||{};
@@ -126,8 +126,8 @@ E.find_all = (zmongo, selector, opt)=>etask(function*mongo_find_all(){
         cursor.skip(opt.skip);
     let items;
     try { items = yield etask.nfn_apply(cursor, '.toArray', []); }
-    catch(e){ ef(e); handle_error(zmongo, 'find.toArray', e, selector); }
-    log_query('toArray', zmongo.name, selector, null, items, this);
+    catch(e){ ef(e); handle_error(zmongo, 'toArray', e, {selector, opt}); }
+    log_query('toArray', zmongo.name, {selector, opt}, null, items, this);
     return items;
 });
 
@@ -500,6 +500,22 @@ E.drop_collection = zmongo=>etask(function*mongo_drop_collection(){
     catch(e){ ef(e); handle_error(zmongo, 'drop', e); }
 });
 
+E.list_collections = (zmongo, opt)=>etask(function*mongo_list_collections(){
+    if (check_stub(zmongo))
+        return null;
+    try {
+        return yield zmongo.db.listCollections(opt).toArray();
+    } catch(e){ ef(e); handle_error(zmongo, 'list_collections', e); }
+});
+
+E.rename_collection = (zmongo, name, opts)=>etask(function*rename_collection(){
+    if (check_stub(zmongo))
+        return null;
+    try {
+        return yield zmongo.collection.rename(name, opts);
+    } catch(e){ ef(e); handle_error(zmongo, 'rename_collection', e); }
+});
+
 E.serverStatus = (zmongo, _opt)=>{
     let opt = {};
     if (_opt&&_opt.read_preference)
@@ -646,7 +662,7 @@ function object_compare(prev, cur, special_arr, prefix){
         if (Array.isArray(cur_value) && Array.isArray(prev_value) && arr_keys)
         {
             res = arr_compare_with_key(prev_value, cur_value, arr_keys, key);
-            if (res.full || (res.changed && selector))
+            if (res.full || res.changed&&selector)
             {
                 do_set(changeset, path, cur_value);
                 return;

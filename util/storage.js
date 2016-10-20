@@ -25,8 +25,7 @@ E.init = function(domain){
     if (have_local_storage())
         return select_local_storage();
     console.error('cannot use localStorage, using cookies instead');
-    domain = domain||'hola.org';
-    select_cookies(domain);
+    select_cookies(domain||'hola.org');
 };
 E.init();
 

@@ -3,7 +3,6 @@
 require('./config.js');
 var zutil = require('./util.js');
 var zerr = require('./zerr.js');
-var array = require('./array.js');
 var etask = require('./etask.js');
 var date = require('./date.js');
 var zcounter = require('./zcounter.js');
@@ -107,7 +106,7 @@ E.etask = function(et, opt){
     function start_slow_test(_opt){
         var slow_test = new E.slow(_opt);
         slow_test.start(et);
-        et.on('ensure', function(){ slow_test.end(); });
+        et.finally(()=>slow_test.end());
     }
     if (E.disable)
         return et;

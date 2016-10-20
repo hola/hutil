@@ -349,10 +349,11 @@ let err_retval = {
     read: null, read_line: null, read_lines: null, fread: null,
     tail: null, head: null, size: null, mkdirp: null, mkdirp_file: null,
     hashsum: null, stat: null, lstat: null, realpath: null, readlink: null,
-    hashsum_check: false, fread_cb: false, read_cb: false, read_line_cb: false,
-    write: false, write_lines: false, append: false, unlink: false,
-    rmdir: undefined, rm_rf: false, touch: false, readdir: [], copy: false,
-    link: false, link_r: false, symlink: false, mtime: -1, find: null
+    hashsum_check: false, fread_cb: false, read_cb: false,
+    fread_line_cb: false,read_line_cb: false, write: false, write_lines: false,
+    append: false, unlink: false, rmdir: undefined, rm_rf: false, touch: false,
+    readdir: [], copy: false, rename: false, link: false, link_r: false,
+    symlink: false, mtime: -1, find: null,
 };
 for (let method in err_retval)
     E[method] = errno_wrapper.bind(null, E[method+'_e'], err_retval[method]);

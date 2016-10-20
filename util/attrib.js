@@ -1,7 +1,7 @@
 // LICENSE_CODE ZON ISC
 'use strict'; /*jslint node:true, browser:true*/
 (function(){
-var define, node_url;
+var define;
 var is_node = typeof module=='object' && module.exports && module.children;
 if (!is_node)
     define = self.define;
@@ -53,15 +53,7 @@ E.to_str = function(attrib){
     return s;
 };
 
-// a simpler regexp based parser: untested, and not properly compatible!
-E.from_str2 = function(s){
-    var re = /^(\S.*):(.*(?:\r?\n\s.*)*(?:$|\r?\n))/gm, a = [], m;
-    for (re.lastIndex=0; m = re.exec(s);)
-        a.push([m[1].trim(), m[2].trim()]);
-    return a;
-};
-
-/* same function as _.pairs() */
+// same function as _.pairs()
 E.from_obj = function(obj){
     var attrib = [], i;
     for (i in obj)
@@ -69,7 +61,7 @@ E.from_obj = function(obj){
     return attrib;
 };
 
-/* same function as _.object() */
+// same function as _.object()
 E.to_obj = function(attrib){
     var obj = {}, i;
     for (i=0; i<attrib.length; i++)
@@ -84,14 +76,11 @@ E.to_obj_lower = function(attrib){
     return obj;
 };
 
-E.to_obj_lower_val = function(attrib){
-    var obj = {}, i;
-    for (i=0; i<attrib.length; i++)
-    {
-	var val = attrib[i][1];
-	obj[attrib[i][0].toLowerCase()] = val ? val.toLowerCase() : val;
-    }
-    return obj;
+E.to_lower = function(attrib){
+    var a = [];
+    for (var i=0; i<attrib.length; i++)
+        a.push([attrib[i][0].toLowerCase(), attrib[i][1]]);
+    return a;
 };
 
 E.get_index = function(attrib, field){
@@ -103,18 +92,22 @@ E.get_index = function(attrib, field){
     return -1;
 };
 
-E.get = function(attrib, field){
+E.get = function(attrib, field, opt){
+    var res = '', sep = opt && opt.sep, _null = opt && opt.null ? null : '';
     for (var i=0; i<attrib.length; i++)
     {
 	if (attrib[i][0]==field)
-	    return attrib[i][1];
+        {
+            if (!sep)
+                return attrib[i][1];
+            res += (res ? sep : '')+attrib[i][1];
+        }
     }
-    return null;
+    return res||_null;
 };
 
-E.get_multi = function(attrib, field){
-    /* http://jsperf.com/get-multi/2 */
-    var i, n = 0, ret = [];
+E.get_arr = function(attrib, field){
+    var i, ret = [];
     for (i=0; i<attrib.length; i++)
     {
 	if (attrib[i][0]==field)

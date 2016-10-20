@@ -32,24 +32,28 @@ E.ms_to_dur = function(_ms){
     return s+pad(hours, 2)+':'+pad(mins, 2)+':'+pad(sec, 2);
 };
 
-E.dur_to_str = function(duration){
-    var ret = '';
+E.dur_to_str = function(duration, opt){
+    opt = opt||{};
+    var parts = [];
+    duration = +duration;
     function chop(period, name){
         if (duration<period)
             return;
         var number = Math.floor(duration/period);
-        ret += number+name;
+        parts.push(number+name);
         duration -= number*period;
     }
+    chop(ms.YEAR, 'y');
+    chop(ms.MONTH, 'mo');
     chop(ms.DAY, 'd');
     chop(ms.HOUR, 'h');
-    chop(ms.MIN, 'm');
+    chop(ms.MIN, 'min');
     chop(ms.SEC, 's');
     if (duration)
-        ret += duration+'ms';
-    if (!ret)
-        ret = '0s';
-    return ret;
+        parts.push(duration+'ms');
+    if (!parts.length)
+        return '0s';
+    return parts.slice(0, opt.units||parts.length).join(opt.sep||'');
 };
 
 E.monotonic = undefined;
@@ -84,12 +88,15 @@ E.init = function(){
 E.init();
 
 E.str_to_dur = function(str){
-    var r = /^(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?$/;
-    var m = str.match(r);
+    var m = str.replace(/ /g, '').match(new RegExp('^(([0-9]+)y(ears?)?)?'
+        +'(([0-9]+)mo(n|nths?)?)?(([0-9]+)w(eeks?)?)?(([0-9]+)d(ays?)?)?'
+        +'(([0-9]+)h(ours?)?)?(([0-9]+)(min|minutes?))?'
+        +'(([0-9]+)s(ec|econds?)?)?(([0-9]+)ms(ec)?)?$'));
     if (!m)
         return;
-    return ms.DAY*(+m[2]||0)+ms.HOUR*(+m[4]||0)+ms.MIN*(+m[6]||0)
-        +ms.SEC*(+m[8]||0)+(+m[10]||0);
+    return ms.YEAR*(+m[2]||0)+ms.MONTH*(+m[5]||0)+ms.WEEK*(+m[8]||0)
+        +ms.DAY*(+m[11]||0)+ms.HOUR*(+m[14]||0)+ms.MIN*(+m[17]||0)
+        +ms.SEC*(+m[20]||0)+(+m[23]||0);
 };
 
 E.months_long = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -100,7 +107,6 @@ var months_short_lc = E.months_short.map(function(m){
     return m.toLowerCase(); });
 E.days_long = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
     'Friday', 'Saturday'];
-var days_long_lc = E.days_long.map(function(d){ return d.toLowerCase(); });
 E.days_short = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 var days_short_lc = E.days_short.map(function(d){ return d.toLowerCase(); });
 E.locale = {months_long: E.months_long, months_short: E.months_short,
@@ -151,7 +157,7 @@ function date_get(d, _new){
     }
     if (typeof d==='number')
 	return new Date(d);
-    throw new TypeError();
+    throw new TypeError('invalid date '+d);
 }
 
 E.to_sql_ms = function(d){
@@ -305,7 +311,7 @@ E.parse = function(text, opt){
             d = E.align(+d+ms.DAY, 'DAY');
         else if ((_v = days_short_lc.indexOf(v))>=0)
             d = new Date(+E.align(d, 'WEEK')+_v*ms.DAY+(dir||0)*ms.WEEK);
-        else if (_v = /^([+-]?\d+)(?:([ymwdhs])(\d.*)?)?$/.exec(v))
+        else if (_v = /^([+-]?\d+)(?:([ymoinwdhs]+)(\d.*)?)?$/.exec(v))
         {
             if (amount!==undefined)
                 return;
@@ -318,10 +324,10 @@ E.parse = function(text, opt){
             }
             continue;
         }
-        else if (/^([ymwdhs]|years?|months?|weeks?|days?|hours?|minutes?|min|seconds?|sec)$/.test(v))
+        else if (/^([ywdhs]|years?|months?|mon?|weeks?|days?|hours?|minutes?|min|seconds?|sec)$/.test(v))
         {
             _v = v[0]=='m' && v[1]=='i' ? ms.MIN :
-                v[0]=='y' ? ms.YEAR : v[0]=='m' ? ms.MONTH :
+                v[0]=='y' ? ms.YEAR : v[0]=='m' && v[1]=='o' ? ms.MONTH :
                 v[0]=='w' ? ms.WEEK :
                 v[0]=='d' ? ms.DAY : v[0]=='h' ? ms.HOUR : ms.SEC;
             amount = amount===undefined ? 1 : amount;
@@ -433,7 +439,7 @@ E.strftime = function(fmt, d, opt){
         return hours==0 ? 12 : hours>12 ? hours-12 : hours; }
     function ord_str(n){
         var i = n % 10, ii = n % 100;
-        if ((ii>=11 && ii<=13) || i==0 || i>=4)
+        if (ii>=11 && ii<=13 || i==0 || i>=4)
             return 'th';
         switch (i)
         {
@@ -473,7 +479,6 @@ E.strftime = function(fmt, d, opt){
     d = E.get(d);
     var locale = opt.locale||E.locale;
     var formats = locale.formats||{};
-    var timestamp = +d;
     var tz = opt.timezone;
     var utc = opt.utc!==undefined ? opt.utc :
 	opt.local!==undefined ? !opt.local :
@@ -499,7 +504,7 @@ E.strftime = function(fmt, d, opt){
     // Some other syntax extensions from Ruby are supported: %-, %_, and %0
     // to pad with nothing, space, or zero (respectively).
     function replace(fmt){ return fmt.replace(/%([-_0]?.)/g, function(_, c){
-	var mod, padding, day, y;
+	var mod, padding, day;
 	if (c.length==2)
 	{
 	    mod = c[0];

@@ -202,6 +202,7 @@ E.find = function(obj, fn, _this){
 };
 E.find_prop = function(obj, prop, val){
     return E.find(obj, function(o){ return o[prop]===val; }); };
+E.isspace = function(c){ return /\s/.test(c); };
 E.isdigit = function(c){ return c>='0' && c<='9'; };
 E.isalpha = function(c){ return (c>='a' && c<='z') || (c>='A' && c<='Z'); };
 E.isalnum = function(c){ return E.isdigit(c)||E.isalpha(c); };
@@ -311,6 +312,16 @@ E.inherit_init = function(obj, ctor, params){
     Object.setPrototypeOf(ctor_proto, orig_proto);
     Object.setPrototypeOf(obj, ctor_proto);
     return ctor.apply(obj, params);
+};
+
+E.pick = function(obj){
+    var i, o = {};
+    for (i=1; i<arguments.length; i++)
+    {
+        if (E.own(obj, arguments[i]))
+            o[arguments[i]] = obj[arguments[i]];
+    }
+    return o;
 };
 
 return E; }); }());

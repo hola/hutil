@@ -171,6 +171,11 @@ E.rotate = function(a, n){
     return a;
 };
 
+E.move = function(a, from, to, n){
+    return Array.prototype.splice.apply(a, [to, n]
+        .concat(a.slice(from, from+n)));
+};
+
 E.to_array = function(v){ return Array.isArray(v) ? v : v==null ? [] : [v]; };
 
 var proto = {};

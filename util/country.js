@@ -119,7 +119,7 @@ E.list = {
     IS: 'Iceland',
     IN: 'India',
     ID: 'Indonesia',
-    IR: 'Iran',
+    IR: 'Iran - Trade is not allowed',
     IQ: 'Iraq',
     IE: 'Ireland',
     IM: 'Isle of Man',
@@ -135,7 +135,7 @@ E.list = {
     KG: 'Kyrgyzstan',
     LA: 'Laos',
     LV: 'Latvia',
-    LB: 'Lebanon',
+    LB: 'Lebanon - Trade is not allowed',
     LS: 'Lesotho',
     LR: 'Liberia',
     LY: 'Libya',
@@ -230,7 +230,7 @@ E.list = {
     SZ: 'Swaziland',
     SE: 'Sweden',
     CH: 'Switzerland',
-    SY: 'Syria',
+    SY: 'Syria - Trade is not allowed',
     TW: 'Taiwan',
     TJ: 'Tajikistan',
     TZ: 'Tanzania',
@@ -268,9 +268,44 @@ E.list = {
     ZW: 'Zimbabwe',
 };
 
+// XXX vladislavl: merge with country list and fill zones for other countries
+E.timezone = {
+  AU: 'Australia/Sydney',
+  BA: 'Europe/Sarajevo',
+  BY: 'Europe/Minsk',
+  CA: 'Canada/Eastern',
+  CN: 'Asia/Shanghai',
+  CR: 'America/Costa_Rica',
+  DE: 'Europe/Berlin',
+  EE: 'Europe/Tallinn',
+  ES: 'Europe/Madrid',
+  FR: 'Europe/Paris',
+  HK: 'Asia/Hong_Kong',
+  IL: 'Israel',
+  IN: 'Asia/Colombo',
+  KR: 'Asia/Seoul',
+  LT: 'Europe/Vilnius',
+  MD: 'Europe/Istanbul',
+  MT: 'Europe/Malta',
+  NL: 'Europe/Amsterdam',
+  NO: 'Europe/Oslo',
+  PH: 'Asia/Manila',
+  RU: 'Europe/Moscow',
+  SG: 'Asia/Singapore',
+  UA: 'Europe/Kiev',
+  UK: 'Europe/London',
+  US: 'US/Eastern',
+  UZ: 'Asia/Tashkent',
+};
+
 E.code2label = function(code){
     code = code.toUpperCase();
     return E.list[code] || code;
+};
+
+E.code2timezone = function(code){
+    code = code.toUpperCase();
+    return E.timezone[code] || code;
 };
 
 E.label2code = function(label){

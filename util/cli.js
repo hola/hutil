@@ -92,7 +92,7 @@ E.exit = function(msg, code){
 };
 E.usage = function(msg){
     E._getopt.showHelp();
-    E.exit(msg);
+    E.exit(msg, 0);
 };
 E.verbose = function(msg){
     if (E.opt.verbose)

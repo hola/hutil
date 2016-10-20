@@ -1,4 +1,11 @@
 /*jslint skip_file:true*/
+(function(){
+var define;
+var is_node = typeof module=='object' && module.exports && module.children;
+if (!is_node)
+    define = self.define;
+else
+    define = require('./require_node.js').define(module, '../');
 define([], function(){
 
 /**
@@ -84,6 +91,19 @@ EventEmitter.prototype.emit = function emit(event, a1, a2, a3, a4, a5) {
   return true;
 };
 
+function _addListener(event, fn, context, prepend) {
+  if (!this._events) this._events = {};
+  if (!this._events[event]) this._events[event] = [];
+
+  fn.__EE3_context = context;
+  if (prepend)
+      this._events[event].unshift(fn);
+  else
+      this._events[event].push(fn);
+
+  return this;
+}
+
 /**
  * Register a new EventListener for the given event.
  *
@@ -93,13 +113,7 @@ EventEmitter.prototype.emit = function emit(event, a1, a2, a3, a4, a5) {
  * @api public
  */
 EventEmitter.prototype.on = function on(event, fn, context) {
-  if (!this._events) this._events = {};
-  if (!this._events[event]) this._events[event] = [];
-
-  fn.__EE3_context = context;
-  this._events[event].push(fn);
-
-  return this;
+  return _addListener.apply(this, [event, fn, context]);
 };
 
 /**
@@ -113,6 +127,19 @@ EventEmitter.prototype.on = function on(event, fn, context) {
 EventEmitter.prototype.once = function once(event, fn, context) {
   fn.__EE3_once = true;
   return this.on(event, fn, context);
+};
+
+EventEmitter.prototype.prependListener = function prependListener(event, fn,
+    context)
+{
+  return _addListener.apply(this, [event, fn, context, true]);
+};
+
+EventEmitter.prototype.prependOnceListener = function prependOnceListener(
+    event, fn, context)
+{
+    fn.__EE3_once = true;
+    return this.prependListener(event, fn, context);
 };
 
 /**
@@ -171,6 +198,13 @@ EventEmitter.prototype.setMaxListeners = function setMaxListeners() {
   return this;
 };
 
+EventEmitter.prototype.eventNames = function eventNames(){
+    var _this = this;
+    return Object.keys(this._events).filter(function(e){
+        return _this._events[e]!==null;
+    });
+}
+
 //
 // Expose the module.
 //
@@ -178,4 +212,4 @@ EventEmitter.EventEmitter = EventEmitter;
 EventEmitter.EventEmitter2 = EventEmitter;
 EventEmitter.EventEmitter3 = EventEmitter;
 
-return EventEmitter; });
+return EventEmitter; }); })();

@@ -14,6 +14,7 @@ else
     qs = require(is_ff_addon ? 'sdk/querystring' : 'querystring');
 }
 define([], function(){
+var assign = Object.assign;
 var E = {};
 
 E.add_proto = function(url){
@@ -35,6 +36,10 @@ E.get_top_level_domain = function(host){
 E.get_host = function(url){
     var n = url.match(/^(https?:)?\/\/([^\/]+)\/.*$/);
     return n ? n[2] : '';
+};
+
+E.get_host_without_tld = function(host){
+    return host.replace(/^([^.]+)\.[^.]{2,3}(\.[^.]{2,3})?$/, '$1');
 };
 
 E.get_path = function(url){
@@ -79,7 +84,7 @@ E.is_valid_url = function(url){
     return /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z0-9-]+(\/.*)?$/i.test(url); };
 
 E.is_valid_domain = function(domain){
-    return /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,6}$/.test(domain); };
+    return /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,63}$/.test(domain); };
 
 E.is_hola_domain = function(domain){
     return domain.search(/^(.*\.)?(hola\.org|holacdn\.com|h-cdn\.com)$/)!=-1;
@@ -110,7 +115,7 @@ E.uri_obj_href = function(uri){
         +(uri.hash||'');
 };
 
-var protocol_re = /^((?:about|http|https|file|ftp):)?(\/\/)?/i;
+var protocol_re = /^((?:about|http|https|file|ftp|ws|wss):)?(\/\/)?/i;
 var host_section_re = /^(.*?)(?:[\/?#]|$)/;
 var host_re = /^(?:(([^:@]*):?([^:@]*))?@)?([^:]*)(?::(\d*))?/;
 var path_section_re = /^([^?#]*)(\?[^#]*)?(#.*)?$/;
@@ -283,16 +288,23 @@ E.root_url_cmp = function(a, b){
     return re.test(s);
 };
 
-E.add_params = function(url, params){
-    var hash_pos = url.indexOf('#'), href = '', fragment = '';
-    if (hash_pos==-1)
-        href = url;
-    else
+E.qs_strip = function(url){ return /^[^?#]*/.exec(url)[0]; };
+
+// mini-implementation of zescape.qs to avoid dependency of escape.js
+function qs_str(qs){
+    var q = [];
+    for (var k in qs)
     {
-        href = url.substr(0, hash_pos);
-        fragment = url.substr(hash_pos);
+        (Array.isArray(qs[k]) ? qs[k] : [qs[k]]).forEach(function(v){
+            q.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); });
     }
-    return href+(href.includes('?') ? '&' : '?')+params+fragment;
+    return q.join('&');
+}
+
+E.qs_add = function(url, qs){
+    var u = E.parse(url), q = assign(u.query ? E.qs_parse(u.query) : {}, qs);
+    u.path = u.pathname+'?'+qs_str(q);
+    return E.uri_obj_href(u);
 };
 
 return E; }); }());

@@ -39,7 +39,8 @@ else
     assert = require('assert');
     define = require('./require_node.js').define(module, '../');
 }
-define(['events', '/util/array.js', '/util/util.js'],
+// XXX yuval: /util/events.js -> events when node 6 (support prependListener) is here
+define(['/util/events.js', '/util/array.js', '/util/util.js'],
     function(events, array, zutil){
 var E = Etask;
 var etask = Etask;
@@ -81,7 +82,7 @@ function Etask(opt, states){
         states = [states];
     }
     // performance: set all fields to undefined
-    this.cur_state = this.states = this._ensure = this.error =
+    this.cur_state = this.states = this._finally = this.error =
     this.at_return = this.next_state = this.use_retval = this.running =
     this.at_continue = this.cancel = this.wait_timer = this.retval =
     this.run_state = this._stack = this.down = this.up = this.child =
@@ -109,7 +110,7 @@ function Etask(opt, states){
             assert(0, 'invalid state type');
         t = this._get_func_type(pstate);
         var state = {f: pstate, label: t.label, try_catch: t.try_catch,
-            catch: t.catch, ensure: t.ensure, cancel: t.cancel,
+            catch: t.catch, finally: t.finally, cancel: t.cancel,
             sig: undefined};
         if (i==0 && opt.state0_args)
         {
@@ -119,13 +120,13 @@ function Etask(opt, states){
         if (state.label)
             idx[state.label] = i;
         assert((state.catch||state.try_catch?1:0)
-            +(state.ensure?1:0)+(state.cancel?1:0)<=1,
+            +(state.finally?1:0)+(state.cancel?1:0)<=1,
             'invalid multiple state types');
-        state.sig = state.ensure||state.cancel;
-        if (state.ensure)
+        state.sig = state.finally||state.cancel;
+        if (state.finally)
         {
-            assert(this._ensure===undefined, 'more than 1 ensure$');
-            this._ensure = i;
+            assert(this._finally===undefined, 'more than 1 finally$');
+            this._finally = i;
         }
         if (state.cancel)
         {
@@ -134,6 +135,7 @@ function Etask(opt, states){
         }
         this.states[i] = state;
     }
+    var _this = this;
     E.root.push(this);
     var in_run = E.in_run_top();
     if (opt.spawn_parent)
@@ -146,7 +148,7 @@ function Etask(opt, states){
         opt.init.call(this);
     if (opt.async)
     {
-        var wait_retval = this._set_wait_retval(), _this = this;
+        var wait_retval = this._set_wait_retval();
         E.nextTick(function(){
             if (_this.running!==undefined)
                 return;
@@ -214,12 +216,13 @@ E.prototype._complete = function(){
     this.parent_type = this.up ? 'call' : 'spawn';
     if (this.error)
         this.emit_safe('uncaught', this.error);
-    if (this._ensure!==undefined)
+    if (this._finally!==undefined)
     {
-        var ret = this._call_safe(this.states[this._ensure].f);
+        var ret = this._call_safe(this.states[this._finally].f);
         if (E.is_err(ret))
             this._set_retval(ret);
     }
+    this.emit_safe('finally');
     this.emit_safe('ensure');
     if (this.error && !this.up && !this.parent && !this.parent_guess)
         E.events.emit('uncaught', this);
@@ -236,7 +239,7 @@ E.prototype._complete = function(){
     this._del_wait_timer();
     this.del_alarm();
     this._ecancel_child();
-    this.emit_safe('ensure1');
+    this.emit_safe('finally1');
     while (this.then_waiting.length)
         this.then_waiting.pop()();
 };
@@ -434,7 +437,7 @@ E.prototype._get_func_type = function(func, on_fail){
     if (type)
         return type;
     type = func_type_cache[name] = {name: undefined, label: undefined,
-        try_catch: undefined, catch: undefined, ensure: undefined,
+        try_catch: undefined, catch: undefined, finally: undefined,
         cancel: undefined};
     if (!name)
         return type;
@@ -460,8 +463,8 @@ E.prototype._get_func_type = function(func, on_fail){
         }
         else if (f[j]=='catch')
             type['catch'] = true;
-        else if (f[j]=='ensure')
-            type.ensure = true;
+        else if (f[j]=='finally' || f[j]=='ensure')
+            type.finally = true;
         else if (f[j]=='cancel')
             type.cancel = true;
         else
@@ -518,6 +521,9 @@ E.prototype.set_state = function(name){
     return this.next_state = state;
 };
 
+E.prototype.finally = function(cb){
+    this.prependListener('finally', cb);
+};
 E.prototype.goto_fn = function(name){
     return this.goto.bind(this, name); };
 E.prototype.goto = function(name, promise){
@@ -589,7 +595,7 @@ E.prototype._set_wait_child = function(wait_retval){
         assert(this===child.parent, 'child does not belong to parent');
         if (child.tm_completed)
             return true;
-        child.once('ensure', function(){
+        child.once('finally', function(){
             return _this._got_retval(wait_retval, {child: child}); });
     }
     this.emit_safe('wait_on_child');
@@ -1090,15 +1096,14 @@ E.sleep = function(ms){
         this.info.ms = ms+'ms';
         timer = setTimeout(this.continue_fn(), ms);
         return this.wait();
-    }, function ensure$(){
+    }, function finally$(){
         clearTimeout(timer);
     }]);
 };
 
 var ebreak_obj = {ebreak: 1};
 E.prototype.break = function(ret){
-    return this.throw({ebreak: ebreak_obj, ret: ret});
-};
+    return this.throw({ebreak: ebreak_obj, ret: ret}); };
 E.for = function(cond, inc, opt, states){
     if (Array.isArray(opt) || typeof opt=='function')
     {
@@ -1405,7 +1410,7 @@ E._generator = function(gen, ctor, opt){
     }, function(ret){
         return this.goto('loop', this.error ?
             {ret: undefined, err: this.error} : {ret: ret, err: undefined});
-    }, function ensure$(){
+    }, function finally$(){
         // https://kangax.github.io/compat-table/es6/#test-generators_%GeneratorPrototype%.return
         // .return() supported only in node>=6.x.x
         if (!done && gen.return)
@@ -1416,6 +1421,31 @@ E.ef = function(err){ // error filter
     if (zerr.on_exception)
         zerr.on_exception(err);
     return err;
+};
+// similar to setInterval
+// opt==10000 (or opt.ms==10000) - call states every 10 seconds
+// opt.mode=='smart' - default mode, like setInterval. If states take
+//   longer than 'ms' to execute, next execution is delayed.
+// opt.mode=='fixed' - always sleep 10 seconds between states
+// opt.mode=='spawn' - spawn every 10 seconds - even if last
+E.interval = function(opt, states){
+    if (typeof opt=='number')
+        opt = {ms: opt};
+    if (opt.mode=='fixed')
+    {
+        return E.for(null, function(){ return etask.sleep(opt.ms); },
+            states);
+    }
+    if (opt.mode=='smart' || !opt.mode)
+    {
+        var now;
+        return E.for(function(){ now = Date.now(); return true; },
+            function(){
+                var delay = zutil.clamp(0, now+opt.ms-Date.now(), Infinity);
+                return etask.sleep(delay);
+            }, states);
+    }
+    // 'spawn' not yet implemented
 };
 
 return Etask; }); }());

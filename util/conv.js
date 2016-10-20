@@ -208,7 +208,15 @@ E.scaled_number = function(num, opt){
 };
 
 E.format_per = function(per){
-    return !per ? '' : per=='%' || per=='s' || per=='ms' ? per : '/'+per[0]; };
+    if (!per)
+        return '';
+    switch (per)
+    {
+    case 's': case 'ms': return per;
+    case '%': case '%%': return '%';
+    default: return '/'+per[0];
+    }
+};
 
 // Takes a function or its string serialization (f.toString()), returns object:
 //     name: declared name or null
