@@ -119,7 +119,7 @@ E.list = {
     IS: 'Iceland',
     IN: 'India',
     ID: 'Indonesia',
-    IR: 'Iran - Trade is not allowed',
+    IR: 'Iran',
     IQ: 'Iraq',
     IE: 'Ireland',
     IM: 'Isle of Man',
@@ -135,7 +135,7 @@ E.list = {
     KG: 'Kyrgyzstan',
     LA: 'Laos',
     LV: 'Latvia',
-    LB: 'Lebanon - Trade is not allowed',
+    LB: 'Lebanon',
     LS: 'Lesotho',
     LR: 'Liberia',
     LY: 'Libya',
@@ -230,7 +230,7 @@ E.list = {
     SZ: 'Swaziland',
     SE: 'Sweden',
     CH: 'Switzerland',
-    SY: 'Syria - Trade is not allowed',
+    SY: 'Syria',
     TW: 'Taiwan',
     TJ: 'Tajikistan',
     TZ: 'Tanzania',
@@ -280,6 +280,7 @@ E.timezone = {
   EE: 'Europe/Tallinn',
   ES: 'Europe/Madrid',
   FR: 'Europe/Paris',
+  GB: 'Europe/London',
   HK: 'Asia/Hong_Kong',
   IL: 'Israel',
   IN: 'Asia/Colombo',
@@ -296,6 +297,18 @@ E.timezone = {
   UK: 'Europe/London',
   US: 'US/Eastern',
   UZ: 'Asia/Tashkent',
+  PL: 'Poland',
+};
+
+E.unallowed_list = {
+    SY: 1,
+    LB: 1,
+    IR: 1,
+    IQ: 1,
+};
+
+E.is_allowed = function(code){
+    return E.list[code] && !E.unallowed_list[code];
 };
 
 E.code2label = function(code){
@@ -315,6 +328,23 @@ E.label2code = function(label){
 	    return i;
     }
     return '';
+};
+
+E.mixed2code = function(mixed){
+    if (!mixed)
+        return;
+    if (/^[A-Z]{2}$/.test(mixed))
+        return mixed;
+    if (mixed.length==2)
+        return mixed.toUpperCase();
+    if (mixed=='USA')
+        return 'US';
+    for (var code in E.list)
+    {
+        if (E.list[code].toLowerCase()==mixed.toLowerCase())
+            return code;
+    }
+    return mixed;
 };
 
 E.www2code = function(code){

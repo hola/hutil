@@ -1,7 +1,6 @@
 // LICENSE_CODE ZON ISC
 'use strict'; /*jslint node:true*/
 require('./config.js');
-const getopt = require('node-getopt');
 const file = require('./file.js');
 const exec = require('./exec.js');
 const zerr = require('./zerr.js');
@@ -13,12 +12,10 @@ const zescape = require('./escape.js');
 const jtools = require('./jtools.js');
 const etask = require('./etask.js');
 const assign = Object.assign, ef = etask.ef;
-var readline;
-try { readline = require('readline-sync'); } catch(e){}
 const E = exports;
 E.dry_run = false;
 E.opt = {};
-E.L = {
+const L = E.L = {
     require: function(name, lib){
         this.__defineGetter__(name, function(){
             delete this[name];
@@ -26,6 +23,8 @@ E.L = {
         });
     }
 };
+L.require('readline', 'readline-sync');
+L.require('getopt', 'node-getopt');
 
 function find_opt(arg, argv){
     for (var a=0; a<argv.length; a++)
@@ -75,7 +74,7 @@ E.getopt = function(args, usage, commands){
                 E.default_command = cmd[0];
         });
     }
-    E._getopt = getopt.create(args).setHelp(
+    E._getopt = L.getopt.create(args).setHelp(
         usage.replace('[[COMMANDS]]', cmdpp(commands)));
 };
 
@@ -92,7 +91,7 @@ E.exit = function(msg, code){
 };
 E.usage = function(msg){
     E._getopt.showHelp();
-    E.exit(msg, 0);
+    E.exit(msg);
 };
 E.verbose = function(msg){
     if (E.opt.verbose)
@@ -209,7 +208,7 @@ E.process_args = function(commands){
     }
 };
 
-E.script_error = function(name){
+E.script_error = (name)=>{
     function err(msg, opt){
         msg = msg||'';
         this.opt = opt||{};
@@ -245,7 +244,7 @@ E.process_exit = (promise, opt)=>etask(function*process_main(){
 });
 
 // get input from user that works also in cygwin
-E.get_input = function(prompt, hide){
+E.get_input = (prompt, hide)=>{
     var res, hide_cmd = hide ? '-s' : '';
     process.stdout.write(prompt+' ');
     res = E.exec('read '+hide_cmd+' param && echo $param',
@@ -256,7 +255,7 @@ E.get_input = function(prompt, hide){
 };
 
 // prompt user for approval, using cli.get_input
-E.ask_approval = function(prompt, opt){
+E.ask_approval = (prompt, opt)=>{
     var res;
     opt = opt||{};
     opt.limit = opt.limit||/^(?:y|n|yes|no)$/i;
@@ -275,5 +274,5 @@ E.ask_approval = function(prompt, opt){
     return !/^n.*$/i.test(res);
 };
 
-E.ask_password = function(prompt){
-    return readline.question(prompt, {hideEchoBack: true, mask: ''}); };
+E.ask_password = prompt=>
+    L.readline.question(prompt, {hideEchoBack: true, mask: ''});

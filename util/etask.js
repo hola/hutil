@@ -39,13 +39,13 @@ else
     assert = require('assert');
     define = require('./require_node.js').define(module, '../');
 }
-// XXX yuval: /util/events.js -> events when node 6 (support prependListener) is here
+// XXX yuval: /util/events.js -> events when node 6 (support prependListener)
+// is here
 define(['/util/events.js', '/util/array.js', '/util/util.js'],
     function(events, array, zutil){
 var E = Etask;
 var etask = Etask;
 var env = process.env, assign = Object.assign;
-E.longcb = +env.LONGCB;
 E.use_bt = +env.ETASK_BT;
 E.root = [];
 E.assert_extra = +env.ETASK_ASSERT_EXTRA; // to debug internal etask bugs
@@ -53,6 +53,44 @@ E.nextTick = process.nextTick;
 // XXX arik/romank: hack, rm set_zerr, get zerzerrusing require
 E.set_zerr = function(_zerr){ zerr = _zerr; };
 E.events = new events();
+var cb_pre, cb_post, longcb_ms, perf_enable;
+E.perf_stat = {};
+function _cb_pre(et){ return {start: Date.now()}; }
+function _cb_post(et, ctx){
+    var ms = Date.now()-ctx.start;
+    if (longcb_ms && ms>longcb_ms)
+    {
+        zerr('long cb '+ms+'ms: '+et.get_name()+', '
+            +et.run_state.f.toString().slice(0, 128));
+    }
+    if (perf_enable)
+    {
+        var name = et.get_name();
+        var perf = E.perf_stat[name]||(E.perf_stat[name] = {ms: 0, n: 0});
+        perf.ms += ms;
+        perf.n++;
+    }
+}
+function cb_set(){
+    if (longcb_ms || perf_enable)
+    {
+        cb_pre = _cb_pre;
+        cb_post = _cb_post;
+    }
+    else
+        cb_pre = cb_post = undefined;
+}
+E.longcb = function(ms){
+    longcb_ms = ms;
+    cb_set();
+};
+E.perf = function(enable){
+    perf_enable = enable;
+    cb_set();
+};
+E.longcb(+env.LONGCB);
+E.perf(+env.ETASK_PERF);
+
 function stack_get(){
     // new Error(): 200K per second
     // http://jsperf.com/error-generation
@@ -362,7 +400,7 @@ E.prototype._run = function(){
     var rv = {ret: undefined, err: undefined};
     while (1)
     {
-        var cb_start, cb_end;
+        var cb_ctx;
         var arg = this.error && !this.use_retval ? this.error : this.retval;
         this.use_retval = false;
         this.running = true;
@@ -370,24 +408,16 @@ E.prototype._run = function(){
         E.in_run.push(this);
         if (zerr.is(zerr.L.DEBUG))
             zerr.debug(this._name+':S'+this.cur_state+': running');
-        if (E.longcb)
-            cb_start = Date.now();
+        if (cb_pre)
+            cb_ctx = cb_pre(this);
         try { rv.ret = this.run_state.f.call(this, arg); }
         catch(e){
             rv.err = e;
             if (rv.err instanceof Error)
                 rv.err.etask = this;
         }
-        if (E.longcb)
-        {
-            cb_end = Date.now();
-            var ms = cb_end-cb_start;
-            if (ms>E.longcb)
-            {
-                zerr('long cb '+ms+'ms: '
-                    +this.run_state.f.toString().slice(0, 128));
-            }
-        }
+        if (cb_post)
+            cb_post(this, cb_ctx);
         this.running = false;
         E.in_run.pop();
         for (; this.child_guess.length;
@@ -1427,7 +1457,7 @@ E.ef = function(err){ // error filter
 // opt.mode=='smart' - default mode, like setInterval. If states take
 //   longer than 'ms' to execute, next execution is delayed.
 // opt.mode=='fixed' - always sleep 10 seconds between states
-// opt.mode=='spawn' - spawn every 10 seconds - even if last
+// opt.mode=='spawn' - spawn every 10 seconds
 E.interval = function(opt, states){
     if (typeof opt=='number')
         opt = {ms: opt};
@@ -1445,7 +1475,30 @@ E.interval = function(opt, states){
                 return etask.sleep(delay);
             }, states);
     }
-    // 'spawn' not yet implemented
+    if (opt.mode=='spawn')
+    {
+        var stopped = false;
+        return etask([function loop(){
+            etask([function try_catch$(){
+                return etask(states);
+            }, function(res){
+                if (!this.error)
+                    return;
+                if (this.error.ebreak!==ebreak_obj)
+                    return this.throw(this.error);
+                stopped = true;
+            }]);
+        }, function(){
+            if (stopped)
+                return this.return();
+            return etask.sleep(opt.ms);
+        }, function(){
+            if (stopped) // stopped during sleep by prev long iteration
+                return this.return();
+            return this.goto('loop');
+        }]);
+    }
+    throw new Error('unexpected mode '+opt.mode);
 };
 
 return Etask; }); }());

@@ -203,6 +203,8 @@ function copy_file(src, dst, opt){
     stat = fs.statSync(src);
     if (E.is_dir(dst)||dst[dst.length-1]=='/')
         dst = dst+'/'+path.basename(src);
+    if (opt.no_overwrite && E.exists(dst))
+        throw new Error('file already exists: '+dst);
     check_file(dst, opt);
     mode = 'mode' in opt ? opt.mode : stat.mode & 0o777;
     fdw = fs.openSync(dst, 'w', mode);

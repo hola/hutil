@@ -12,6 +12,7 @@ const array = require('./array.js');
 const list = require('./list.js');
 const E = exports;
 const env = process.env;
+const assign = Object.assign;
 
 var slow_opt = {};
 function get_slow_opt(op, hdr){
@@ -56,13 +57,13 @@ function sql_query_pool(_pool, query, args, opt, conn_query_fn){
 	    return this.throw(this.error);
 	}
 	return res;
-    }, function ensure$(res){
+    }, function finally$(res){
 	if (sql)
 	    sql.end();
     }]);
 }
 
-function sql_query_mysql(sql, query, args){
+function sql_query_mysql(sql, query, args, opt){
     return etask.nfn_apply(sql, '.query', [query, args]); }
 
 const sql_query_sqlite3 = (sql, query, args, opt)=>etask(
@@ -72,7 +73,7 @@ function*sql_query_sqlite3(){
     if (!pquery)
         return yield etask.nfn_apply(sql, '.all', [query, args]);
     let stmt, q_cache;
-    this.on('ensure', ()=>{
+    this.finally(()=>{
         if (!stmt)
             return;
         q_cache.used.rm(stmt);
@@ -122,8 +123,9 @@ E.conn_like_pool = function(pool){
     return pool.do_conn_from_pool();
 };
 
-function zsql(driver){
-    var slow_test = 1, def_conn_limit = 10;
+function zsql(driver, _opt){
+    _opt = assign({slow: 1}, _opt);
+    let slow_test = _opt.slow, def_conn_limit = 10;
     switch (driver)
     {
     case 'mysql':
@@ -179,14 +181,14 @@ function zsql(driver){
     this.driver = driver;
 }
 
-E.connect = function(conn, driver){
-    var opt = conn instanceof Object ? conn :
+E.connect = function(conn, driver, _opt){
+    let opt = conn instanceof Object ? conn :
 	sql_util.get_mysql_conn_opt(conn);
-    var sql;
+    let sql;
     opt.db = opt.database;
     zerr.info('sql connect '+driver+' '+opt.host+' user '+
 	opt.user+' password '+opt.password+' database '+opt.database);
-    sql = new zsql(driver);
+    sql = new zsql(driver, _opt);
     /* XXX dmitry: maybe omit opt from do_connect */
     sql.opt = opt;
     sql.do_connect(opt);

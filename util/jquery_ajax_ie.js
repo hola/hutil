@@ -54,7 +54,7 @@ if (!$.support.cors&&window.XDomainRequest)
                 }  else
                 */
                 try {
-                    if (userType=='json'||(userType!='text'&&
+                    if (userType=='json' || (userType!='text'&&
                         jsonRegEx.test(xdr.contentType)))
                     {
                          try {
@@ -66,7 +66,7 @@ if (!$.support.cors&&window.XDomainRequest)
                             // throw 'Invalid JSON: ' + xdr.responseText;
                          }
                     }
-                    else if (userType=='xml'||(userType!='text'&&
+                    else if (userType=='xml' || (userType!='text'&&
                         xmlRegEx.test(xdr.contentType)))
                     {
                         var doc = new window.ActiveXObject(

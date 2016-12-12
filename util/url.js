@@ -58,10 +58,10 @@ E.get_host_gently = function(url){
 };
 
 E.is_ip = function(host){
-    var m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(host);
+    var m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
     if (!m)
         return false;
-    for (var i = 1; i<=4; i++)
+    for (var i=1; i<=4; i++)
     {
         if (+m[i]>255)
             return false;
@@ -69,9 +69,70 @@ E.is_ip = function(host){
     return true;
 };
 
+E.is_ip_mask = function(host){
+    var m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+    if (!m)
+        return false;
+    if (E.ip2num(host)==0)
+        return false;
+    var final = false;
+    var check_num_mask = function(num){
+        var arr = (num >>> 0).toString(2).split(''), final = false;
+        for (var i=0; i<arr.length; i++)
+        {
+            if (final && arr[i]=='1')
+                return false;
+            if (!final && arr[i]=='0')
+                final = true;
+        }
+        return true;
+    };
+    for (var i=1; i<=4; i++)
+    {
+        if (+m[i]>255)
+            return false;
+        if (final && +m[i]>0)
+            return false;
+        if (!final && +m[i]<255)
+        {
+            if (!check_num_mask(+m[i]))
+                return false;
+            final = true;
+        }
+    }
+    return !!final;
+};
+
+E.ip2num = function(ip){
+    var num = 0;
+    ip.split('.').forEach(function(octet){
+        num <<= 8;
+        num += +octet;
+    });
+    return num>>>0;
+};
+
+E.num2ip = function(num){
+    return (num>>>24)+'.'+(num>>16 & 255)+'.'+(num>>8 & 255)+'.'+(num & 255);
+};
+
 E.is_ip_subnet = function(host){
     var m = /(.+?)\/(\d+)$/.exec(host);
     return m && E.is_ip(m[1]) && +m[2]<=32;
+};
+
+E.is_ip_netmask = function(host){
+    var ips = host.split('/');
+    if (ips.length!=2 || !E.is_ip(ips[0]) || !E.is_ip_mask(ips[1]))
+        return false;
+    return true;
+};
+
+E.is_ip_range = function(host){
+    var ips = host.split('-');
+    if (ips.length!=2 || !E.is_ip(ips[0]) || !E.is_ip(ips[1]))
+        return false;
+    return E.ip2num(ips[0])<E.ip2num(ips[1]);
 };
 
 E.is_ip_port = function(host){
@@ -93,6 +154,15 @@ E.is_hola_domain = function(domain){
 E.is_valid_email = function(email){
     var n = email.toLowerCase().match(/^[a-z0-9_\.\-\+]+@(.*)$/);
     return !!(n && E.is_valid_domain(n[1]));
+};
+
+E.is_ip_in_range = function(ips_range, ip){
+    if (!E.is_ip_range(ips_range) || !E.is_ip(ip))
+        return false;
+    var ips = ips_range.split('-');
+    var min_ip = E.ip2num(ips[0]), max_ip = E.ip2num(ips[1]);
+    var num_ip = E.ip2num(ip);
+    return num_ip>=min_ip && num_ip<=max_ip;
 };
 
 E.host_lookup = function(lookup, host){
