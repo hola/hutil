@@ -191,6 +191,29 @@ function ie9_location_origin(){
 }
 ie9_location_origin();
 
+function ie_edge_closest(){
+    if (typeof Element!='object' && typeof Element!='function' ||
+        Element.prototype.closest)
+    {
+        return;
+    }
+    var matches =
+        Element.prototype.matches || Element.prototype.msMatchesSelector;
+    if (!matches)
+        return;
+    Element.prototype.closest = function(selector){
+        var el = this;
+        while (el)
+        {
+            if (matches.call(el, selector))
+                return el;
+            el = el.parentElement;
+        }
+        return null;
+    };
+}
+ie_edge_closest();
+
 E.t.function_name = function(){
     // toString() on IE is very fast compared to chrome ~260k/s vs 26k/s on
     // a small function.

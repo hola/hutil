@@ -208,7 +208,7 @@ E.uri = function(uri, qs, hash){
 
 E.mailto_url = function(mail){
     return 'mailto:'+(mail.to||'')+'?'
-    +E.qs({cc: mail.cc, subject: mail.subject, body: mail.body},
+    +E.qs({cc: mail.cc, bcc: mail.bcc, subject: mail.subject, body: mail.body},
 	{space_plus: false});
 };
 

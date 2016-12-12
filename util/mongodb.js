@@ -416,7 +416,7 @@ E.connect = (conn, db, collection)=>etask(function*mongo_connect(){
     url = zescape.uri('mongodb://'+hosts+'/'+db, url_opts);
     if (can_reuse)
     {
-        this.on('ensure', ()=>mutex.leave(mongo_mutex, url));
+        this.finally(()=>mutex.leave(mongo_mutex, url));
         yield mutex.enter(mongo_mutex, url);
     }
     if (can_reuse && open_conns[url])
@@ -500,6 +500,13 @@ E.drop_collection = zmongo=>etask(function*mongo_drop_collection(){
     catch(e){ ef(e); handle_error(zmongo, 'drop', e); }
 });
 
+E.is_capped_collection = zmongo=>etask(function*mongo_is_capped_collection(){
+    if (check_stub(zmongo))
+        return null;
+    try { return yield zmongo.collection.isCapped(); }
+    catch(e){ ef(e); handle_error(zmongo, 'is_capped_collection', e); }
+});
+
 E.list_collections = (zmongo, opt)=>etask(function*mongo_list_collections(){
     if (check_stub(zmongo))
         return null;
@@ -508,12 +515,44 @@ E.list_collections = (zmongo, opt)=>etask(function*mongo_list_collections(){
     } catch(e){ ef(e); handle_error(zmongo, 'list_collections', e); }
 });
 
+E.collection_exists = zmongo=>etask(function*collection_exists(){
+    if (check_stub(zmongo))
+        return null;
+    let col_name = zmongo.collection.s.name;
+    let cols = yield E.list_collections(zmongo);
+    return !!_.find(cols, {name: col_name});
+});
+
 E.rename_collection = (zmongo, name, opts)=>etask(function*rename_collection(){
     if (check_stub(zmongo))
         return null;
     try {
         return yield zmongo.collection.rename(name, opts);
     } catch(e){ ef(e); handle_error(zmongo, 'rename_collection', e); }
+});
+
+E.collection_stats = zmongo=>etask(function*collectoin_stats(){
+    if (check_stub(zmongo))
+        return null;
+    try { return yield zmongo.collection.stats(); }
+    catch(e){ ef(e); handle_error(zmongo, 'is_capped_collection', e); }
+});
+
+E.set_collection_cap = (zmongo, size, max)=>etask(function*(){
+    if (check_stub(zmongo))
+        return null;
+    try {
+        let cn = zmongo.collection.s.name;
+        let new_col = yield E.create_collection(zmongo, cn+'__new', [],
+            { capped: true, size: size, max: max });
+        let data = yield E.find(zmongo).toArray();
+        for (let d of data)
+        {
+            d._id = E.object_id(d._id);
+            yield E.insert({collection: new_col}, d);
+        }
+        yield new_col.rename(cn, {dropTarget: true});
+    } catch(e){ ef(e); handle_error(zmongo, 'set_collection_cap', e); }
 });
 
 E.serverStatus = (zmongo, _opt)=>{
@@ -533,6 +572,7 @@ E.command = (zmongo, command, opt)=>etask(function*mongo_command(){
     try { return yield etask.nfn_apply(zmongo.db, '.command', args); }
     catch(e){ ef(e); handle_error(zmongo, 'command', e); }
 });
+
 E.use_power_of_2_sizes = (zmongo, collection, val)=>etask(
     'mongo use_power_of_2_sizes',
 function*(){

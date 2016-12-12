@@ -235,14 +235,6 @@ E.parse_function = function(f){
     };
 };
 
-// Takes an object similar to one returned by E.parse_function, returns
-// function.
-// XXX alexey: does not support creating named functions (there isn't a good
-// API for that)
-E.build_function = function(info){
-    return new Function(info.args.join(','), info.body);
-};
-
 function date_stringify(d){ return {__ISODate__: d.toISOString()}; }
 
 E.JSON_stringify = function(obj, opt){
@@ -299,7 +291,13 @@ function parse_leaf(v, opt){
     if (v.__ISODate__ && opt.date)
         return new Date(v.__ISODate__);
     if (v.__Function__ && opt.func)
-        return E.build_function(E.parse_function(v.__Function__));
+    {
+        if (vm)
+            return vm.runInThisContext('('+v.__Function__+')');
+        // fallback for browser environment
+        var info = E.parse_function(v.__Function__);
+        return new Function(info.args.join(','), info.body);
+    }
     if (v.__RegExp__ && opt.re)
     {
         var parsed = /^\/(.*)\/(\w*)$/.exec(v.__RegExp__);

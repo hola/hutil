@@ -229,7 +229,7 @@ _zerr = function(level, args){
 E._zerr = _zerr;
 
 E.zexit = function(args){
-    var stack, zexit_args = arguments;
+    var stack;
     if (err_has_stack(args))
     {
         stack = args.stack;

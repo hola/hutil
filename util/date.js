@@ -45,6 +45,8 @@ E.dur_to_str = function(duration, opt){
     }
     chop(ms.YEAR, 'y');
     chop(ms.MONTH, 'mo');
+    if (opt.week)
+        chop(ms.WEEK, 'w');
     chop(ms.DAY, 'd');
     chop(ms.HOUR, 'h');
     chop(ms.MIN, 'min');
@@ -87,16 +89,20 @@ E.init = function(){
 };
 E.init();
 
-E.str_to_dur = function(str){
+E.str_to_dur = function(str, opt){
+    opt = opt||{};
+    var month = 'mo|mon|months?';
+    if (opt.short_month)
+        month +='|m';
     var m = str.replace(/ /g, '').match(new RegExp('^(([0-9]+)y(ears?)?)?'
-        +'(([0-9]+)mo(n|nths?)?)?(([0-9]+)w(eeks?)?)?(([0-9]+)d(ays?)?)?'
-        +'(([0-9]+)h(ours?)?)?(([0-9]+)(min|minutes?))?'
-        +'(([0-9]+)s(ec|econds?)?)?(([0-9]+)ms(ec)?)?$'));
+    +'(([0-9]+)('+month+'))?(([0-9]+)w(eeks?)?)?(([0-9]+)d(ays?)?)?'
+    +'(([0-9]+)h(ours?)?)?(([0-9]+)(min|minutes?))?'
+    +'(([0-9]+)s(ec|econds?)?)?(([0-9]+)ms(ec)?)?$'));
     if (!m)
         return;
     return ms.YEAR*(+m[2]||0)+ms.MONTH*(+m[5]||0)+ms.WEEK*(+m[8]||0)
-        +ms.DAY*(+m[11]||0)+ms.HOUR*(+m[14]||0)+ms.MIN*(+m[17]||0)
-        +ms.SEC*(+m[20]||0)+(+m[23]||0);
+    +ms.DAY*(+m[11]||0)+ms.HOUR*(+m[14]||0)+ms.MIN*(+m[17]||0)
+    +ms.SEC*(+m[20]||0)+(+m[23]||0);
 };
 
 E.months_long = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -120,11 +126,12 @@ function date_get(d, _new){
 	return new Date(null);
     if (d instanceof Date)
 	return _new ? new Date(d) : d;
-    if (typeof d==='string')
+    if (typeof d=='string')
     {
 	var m;
+        d = d.trim();
 	// check for ISO/SQL/JDate date
-	if (m = /^\s*((\d\d\d\d)-(\d\d)-(\d\d)|(\d\d?)-([A-Za-z]{3})-(\d\d(\d\d)?))\s*([\sT](\d\d):(\d\d)(:(\d\d)(\.(\d\d\d))?)?Z?)?\s*$/
+	if (m = /^((\d\d\d\d)-(\d\d)-(\d\d)|(\d\d?)-([A-Za-z]{3})-(\d\d(\d\d)?))\s*([\sT](\d\d):(\d\d)(:(\d\d)(\.(\d\d\d))?)?Z?)?$/
 	    .exec(d))
 	{
             H = +m[10]||0; M = +m[11]||0; S = +m[13]||0; _ms = +m[15]||0;
@@ -150,12 +157,12 @@ function date_get(d, _new){
             // cannot reach here
         }
         // check for string timestamp
-        if (m = /^\s*(\d+)\s*$/.exec(d))
+        if (/^\d+$/.test(d))
             return new Date(+d);
         // else might be parsed as non UTC!
         return new Date(d);
     }
-    if (typeof d==='number')
+    if (typeof d=='number')
 	return new Date(d);
     throw new TypeError('invalid date '+d);
 }
@@ -258,23 +265,27 @@ E.add = function(d, duration){
     return d;
 };
 
+E.describe_interval = function(_ms){
+    if (_ms<2*ms.MIN)
+        return Math.round(_ms/ms.SEC)+' sec';
+    if (_ms<2*ms.HOUR)
+        return Math.round(_ms/ms.MIN)+' min';
+    if (_ms<2*ms.DAY)
+        return Math.round(_ms/ms.HOUR)+' hours';
+    if (_ms<2*ms.WEEK)
+        return Math.round(_ms/ms.DAY)+' days';
+    if (_ms<2*ms.MONTH)
+        return Math.round(_ms/ms.WEEK)+' weeks';
+    if (_ms<2*ms.YEAR)
+        return Math.round(_ms/ms.MONTH)+' months';
+    return Math.round(_ms/ms.YEAR)+' years';
+};
+
 E.time_ago = function(d, until_date){
     var _ms = E.get(until_date)-E.get(d);
-    if (_ms<2*ms.SEC)
+    if (_ms<ms.SEC)
         return 'right now';
-    if (_ms<2*ms.MIN)
-        return Math.round(_ms/ms.SEC)+' sec ago';
-    if (_ms<2*ms.HOUR)
-        return Math.round(_ms/ms.MIN)+' min ago';
-    if (_ms<2*ms.DAY)
-        return Math.round(_ms/ms.HOUR)+' hour ago';
-    if (_ms<2*ms.WEEK)
-        return Math.round(_ms/ms.DAY)+' days ago';
-    if (_ms<2*ms.MONTH)
-        return Math.round(_ms/ms.WEEK)+' weeks ago';
-    if (_ms<2*ms.YEAR)
-        return Math.round(_ms/ms.MONTH)+' month ago';
-    return Math.round(_ms/ms.YEAR)+' years ago';
+    return E.describe_interval(_ms)+' ago';
 };
 
 E.ms_to_str = function(_ms){
@@ -352,38 +363,51 @@ E.parse = function(text, opt){
 
 E.strptime = function(str, fmt){
     function month(m){ return months_short_lc.indexOf(m.toLowerCase()); }
-    var ampm, timezone;
     var parse = {
-        '%': ['%', function(){}],
-        a: ['[a-z]+', function(m){}],
-        A: ['[a-z]+', function(m){}],
-        b: ['[a-z]+', function(m){ d.setUTCMonth(month(m)); }],
-        B: ['[a-z]+', function(m){ d.setUTCMonth(month(m.toLowerCase())); }],
-        Y: ['[0-9]{4}', function(m){ d.setUTCFullYear(+m); }],
-        m: ['[0-9]{0,2}', function(m){ d.setUTCMonth(+m-1); }],
-        d: ['[0-9]{0,2}', function(m){ d.setUTCDate(+m); }],
-        H: ['[0-9]{0,2}', function(m){ d.setUTCHours(+m); }],
-        M: ['[0-9]{0,2}', function(m){ d.setUTCMinutes(+m); }],
-        S: ['[0-9]{0,2}', function(m){ d.setUTCSeconds(+m); }],
-        s: ['[0-9]+', function(m){ d.setUTCMilliseconds(+m); }],
+        '%': ['%', function(){}, 0],
+        a: ['[a-z]+', function(m){}, 0],
+        A: ['[a-z]+', function(m){}, 0],
+        b: ['[a-z]+', function(m){ d.setUTCMonth(month(m)); }, 2],
+        B: ['[a-z]+', function(m){
+            d.setUTCMonth(month(m.toLowerCase())); }, 2],
+        y: ['[0-9]{2}', function(m){
+            d.setUTCFullYear(+m+(m<70 ? 2000 : 1900)); }, 1],
+        Y: ['[0-9]{4}', function(m){ d.setUTCFullYear(+m); }, 1],
+        m: ['[0-9]{0,2}', function(m){ d.setUTCMonth(+m-1); }, 2],
+        d: ['[0-9]{0,2}', function(m){ d.setUTCDate(+m); }, 3],
+        H: ['[0-9]{0,2}', function(m){ d.setUTCHours(+m); }, 4],
+        M: ['[0-9]{0,2}', function(m){ d.setUTCMinutes(+m); }, 5],
+        S: ['[0-9]{0,2}', function(m){ d.setUTCSeconds(+m); }, 6],
+        s: ['[0-9]+', function(m){ d = new Date(+m); }, 0],
+        L: ['[0-9]{0,3}', function(m){ d.setUTCMilliseconds(+m); }, 7],
         z: ['[+-][0-9]{4}', function(m){
-            timezone = +m.slice(0, 3)*3600+m.slice(3, 5)*60; }],
+            var timezone = +m.slice(0, 3)*3600+m.slice(3, 5)*60;
+            d = new Date(d.getTime()-timezone*1000);
+        }, 8],
         Z: ['[a-z]{0,3}[+-][0-9]{2}:?[0-9]{2}|[a-z]{1,3}', function(m){
             m = /^([a-z]{0,3})(?:([+-][0-9]{2}):?([0-9]{2}))?$/i.exec(m);
             if (m[1]=='Z' || m[1]=='UTC')
                 return;
-            timezone = +m[2]*3600+m[3]*60;
-        }],
-        I: ['[0-9]{0,2}', function(m){ d.setUTCHours(+m); }],
-        p: ['AM|PM', function(m){ ampm = m.toUpperCase(); }],
+            var timezone = +m[2]*3600+m[3]*60;
+            d = new Date(d.getTime()-timezone*1000);
+        }, 8],
+        I: ['[0-9]{0,2}', function(m){ d.setUTCHours(+m); }, 4],
+        p: ['AM|PM', function(m){
+            if (d.getUTCHours()==12)
+                d.setUTCHours(d.getUTCHours()-12);
+            if (m.toUpperCase()=='PM')
+                d.setUTCHours(d.getUTCHours()+12);
+        }, 9],
     };
     var ff = [];
+    var ff_idx = [];
     var re = new RegExp('^\\s*'+fmt.replace(/%(?:([a-zA-Z%]))/g,
         function(_, fd)
     {
         var d = parse[fd];
         if (!d)
             throw Error('Unknown format descripter: '+fd);
+        ff_idx[d[2]] = ff.length;
         ff.push(d[1]);
         return '('+d[0]+')';
     })+'\\s*$', 'i');
@@ -391,21 +415,12 @@ E.strptime = function(str, fmt){
     if (!matched)
         return;
     var d = new Date(0);
-    for (var i=0; i<ff.length; i++)
+    for (var i=0; i<ff_idx.length; i++)
     {
-        var fun = ff[i];
-        if (!fun)
-            continue;
-        fun.call(d, matched[i+1]);
-    }
-    if (timezone)
-        d = new Date(d.getTime()-timezone*1000);
-    if (ampm)
-    {
-        if (d.getUTCHours()==12)
-            d.setUTCHours(d.getUTCHours()-12);
-        if (ampm=='PM')
-            d.setUTCHours(d.getUTCHours()+12);
+        var idx = ff_idx[i];
+        var fun = ff[idx];
+        if (fun)
+            fun(matched[idx+1]);
     }
     return d;
 };
@@ -569,8 +584,8 @@ E.strftime = function(fmt, d, opt){
 	case 'Z': // 'GMT'
 	    if (utc)
 	        return 'GMT';
-	    var tzString = d.toString().match(/\((\w+)\)/);
-	    return tzString && tzString[1] || '';
+	    var tz_string = d.toString().match(/\((\w+)\)/);
+	    return tz_string && tz_string[1] || '';
 	case 'z': // '+0000'
 	    if (utc)
 	        return '+0000';
