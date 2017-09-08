@@ -289,19 +289,24 @@ E.qs_parse = function(q, bin){
 function token_regex(s, end){ return end ? '^'+s+'$' : s; }
 
 E.http_glob_host = function(host, end){
+    var port = '';
+    var parts = host.split(':');
+    host = parts[0];
+    if (parts.length>1)
+        port = ':'+parts[1].replace('*', '[0-9]+');
     var n = host.match(/^(|.*[^*])(\*+)$/);
     if (n)
     {
-	host = E.http_glob_host(n[1])
-	+(n[2].length==1 ? '[^./]+' : '[^/]'+(n[1] ? '*' : '+'));
-	return token_regex(host, end);
+        host = E.http_glob_host(n[1])
+        +(n[2].length==1 ? '[^./]+' : '[^/]'+(n[1] ? '*' : '+'));
+        return token_regex(host+port, end);
     }
     /* '**' replace doesn't use '*' in output to avoid conflict with '*'
      * replace following it */
     host = host.replace(/\*\*\./, '**').replace(/\*\./, '*')
     .replace(/\./g, '\\.').replace(/\*\*/g, '(([^./]+\\.)+)?')
     .replace(/\*/g, '[^./]+\\.');
-    return token_regex(host, end);
+    return token_regex(host+port, end);
 };
 
 E.http_glob_path = function(path, end){
