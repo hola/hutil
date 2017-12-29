@@ -18,7 +18,7 @@ E.once = (path, fn)=>{
 };
 
 E.off = listener=>{
-    EventEmitter.prototype.off.call(E, listener.path, listener.fn);
+    EventEmitter.prototype.removeListener.call(E, listener.path, listener.fn);
 };
 
 E.get = path=>_.get(E.state, path);
