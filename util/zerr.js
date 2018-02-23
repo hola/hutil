@@ -20,7 +20,6 @@ else
         process = global.process||require('_process');
         require('./config.js');
         var cluster = require('cluster');
-        var fs = require('fs');
         var version = require('./version.js').version;
     }
 }
@@ -61,7 +60,7 @@ E.assert = function(exp, msg){
 
 E.json = function(o, replacer, space){
     try { return JSON.stringify(o, replacer, space)||''; }
-    catch(err){ return '[circular]'; }
+    catch(e){ return '[circular]'; }
 };
 
 E.is = function(level){ return level<=E.level; };
@@ -90,8 +89,9 @@ function wrap_perr(perr_fn){
     }
     return function(id, info, opt){
         opt = opt||{};
-        var ms = (opt.rate_limit && opt.rate_limit.ms)||date.ms.HOUR;
-        var count = (opt.rate_limit && opt.rate_limit.count)||10;
+        var _rate_limit = opt.rate_limit||{};
+        var ms = _rate_limit.ms||date.ms.HOUR, count = _rate_limit.count||10;
+        var disable_drop_count = _rate_limit.disable_drop_count;
         var rl_hash = perr_orig.rl_hash = perr_orig.rl_hash||{};
         var rl = rl_hash[id] = rl_hash[id]||{};
         if (pre_send)
@@ -100,7 +100,7 @@ function wrap_perr(perr_fn){
         {
             if (perr_dropped[id])
             {
-                if (info && typeof info!='string')
+                if (!disable_drop_count && info && typeof info!='string')
                     info.w = perr_dropped[id];
                 perr_dropped[id] = null;
             }
@@ -249,11 +249,22 @@ E.zexit = function(args){
         debugger;
         process.exit(1);
     }
+    // workaround for process.zon override issue
+    if (process.zon && process.zon.main)
+    {
+        // XXX mikhail: expose contsants via zutil module
+        var LCRIT = 2;
+        var LCONSOLE = 0x100;
+        var emb_zutil = process.binding('zutil');
+        emb_zutil.zerr(LCRIT|LCONSOLE, 'perr node_zexit '+E.e2s(args));
+        process.exit(1);
+    }
+    var conf = require('./conf.js');
     var zcounter_file = require('./zcounter_file.js');
     zcounter_file.inc('server_zexit');
     args = zerr_format(arguments);
     write_zexit_log({id: 'server_zexit', info: ''+args, ts: date.to_sql(),
-        backtrace: stack, version: version});
+        backtrace: stack, version: version, app: conf.app});
     E.flush();
     debugger;
     process.exit(1);

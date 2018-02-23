@@ -3,22 +3,28 @@
 (function(){
 var define, process, zerr, assert;
 var is_node = typeof module=='object' && module.exports && module.children;
+var is_rn = typeof navigator=='object' && navigator.product=='ReactNative';
 var is_ff_addon = typeof module=='object' && module.uri
     && !module.uri.indexOf('resource://');
 if (!is_node)
 {
     if (is_ff_addon)
         define = require('./require_node.js').define(module, '../');
+    else if (is_rn)
+    {
+        define = require('./require_node.js').define(module, '../',
+            require('/util/events.js'), require('/util/array.js'),
+            require('/util/util.js'));
+    }
     else
         define = self.define;
     process = {
         nextTick: function(fn){ setTimeout(fn, 0); },
         env: {},
     };
-    assert = function(){}; // XXX romank: add proper assert
     // XXX romank: use zerr.js
     // XXX bahaa: require bext/pub/zerr.js for extensions
-    if (!is_ff_addon && self.hola && self.hola.zerr)
+    if (!is_ff_addon && !is_rn && self.hola && self.hola.zerr)
         zerr = self.hola.zerr;
     else
     {
@@ -39,6 +45,10 @@ else
     assert = require('assert');
     define = require('./require_node.js').define(module, '../');
 }
+// XXX odin: normally this would only be run for !is_node, but 'who' unittests
+// loads a stubbed assert
+if (typeof assert!='function')
+    assert = function(){}; // XXX romank: add proper assert
 // XXX yuval: /util/events.js -> events when node 6 (support prependListener)
 // is here
 define(['/util/events.js', '/util/array.js', '/util/util.js'],
@@ -53,10 +63,14 @@ E.nextTick = process.nextTick;
 // XXX arik/romank: hack, rm set_zerr, get zerzerrusing require
 E.set_zerr = function(_zerr){ zerr = _zerr; };
 E.events = new events();
-var cb_pre, cb_post, longcb_ms, perf_enable;
+var cb_pre, cb_post, cb_ctx, longcb_ms, perf_enable;
 E.perf_stat = {};
+// XXX romang: hack to import in react native
+if (is_rn)
+    E.etask = E;
 function _cb_pre(et){ return {start: Date.now()}; }
 function _cb_post(et, ctx){
+    ctx = ctx||cb_ctx;
     var ms = Date.now()-ctx.start;
     if (longcb_ms && ms>longcb_ms)
     {
@@ -76,9 +90,10 @@ function cb_set(){
     {
         cb_pre = _cb_pre;
         cb_post = _cb_post;
+        cb_ctx = {start: Date.now()};
     }
     else
-        cb_pre = cb_post = undefined;
+        cb_pre = cb_post = cb_ctx = undefined;
 }
 E.longcb = function(ms){
     longcb_ms = ms;
@@ -279,7 +294,7 @@ E.prototype._complete = function(){
     this._ecancel_child();
     this.emit_safe('finally1');
     while (this.then_waiting.length)
-        this.then_waiting.pop()();
+        this.then_waiting.shift()();
 };
 E.prototype._next = function(rv){
     if (this.tm_completed)
@@ -552,8 +567,7 @@ E.prototype.set_state = function(name){
 };
 
 E.prototype.finally = function(cb){
-    this.prependListener('finally', cb);
-};
+    this.prependListener('finally', cb); };
 E.prototype.goto_fn = function(name){
     return this.goto.bind(this, name); };
 E.prototype.goto = function(name, promise){
@@ -635,7 +649,9 @@ E.prototype._got_retval = function(wait_retval, res){
     if (this.wait_retval!==wait_retval || wait_retval.completed)
         return;
     wait_retval.completed = true;
-    this._next_run(E._res2rv(res));
+    // inline _next_run to reduce stack depth
+    if (!this._next(E._res2rv(res)))
+        this._run();
 };
 E.prototype.continue_fn = function(){
     return this.continue.bind(this); };
@@ -1407,12 +1423,16 @@ function etask_fn(opt, states, push_this){
         states = opt;
         opt = undefined;
     }
+    var is_generator = typeof states=='function' &&
+        states.constructor.name=='GeneratorFunction';
     return function(){
         var _opt = assign({}, opt);
         _opt.state0_args = Array.from(arguments);
         if (push_this)
             _opt.state0_args.unshift(this);
-        return etask(_opt, states);
+        if (is_generator)
+            return E._generator(null, states, _opt);
+        return new Etask(_opt, states);
     };
 }
 E.fn = function(opt, states){ return etask_fn(opt, states, false); };
@@ -1423,7 +1443,7 @@ E._generator = function(gen, ctor, opt){
     if (opt.cancel===undefined)
         opt.cancel = true;
     var done;
-    return etask(opt, [function(){
+    return new Etask(opt, [function(){
         this.generator = gen = gen||ctor.apply(this, opt.state0_args||[]);
         this.generator_ctor = ctor;
         return {ret: undefined, err: undefined};
