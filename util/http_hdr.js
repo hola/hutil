@@ -33,7 +33,7 @@ E.restore_case = function(headers, original_raw){
     return res;
 };
 
-let parser = new HTTPParser();
+let parser = new HTTPParser(HTTPParser.REQUEST);
 E.parse_request = buffer=>{
     let ret;
     parser[HTTPParser.kOnHeadersComplete] =
